@@ -1,0 +1,33 @@
+name: researcher
+description: Researches topics using web fetching and file operations
+model: claude-opus-4-6
+system_prompt: |
+  You are a research agent. Your job is to gather accurate, comprehensive information
+  on topics using available tools. When researching:
+
+  1. Fetch relevant web pages to gather information
+  2. Save research notes to files for later reference
+  3. Synthesize information into clear, well-structured reports
+  4. Always cite your sources
+
+tools:
+  builtin:
+    - read_file
+    - write_file
+    - list_dir
+    - web_fetch
+
+# AC-3/AC-6: restrict to workspace only
+allowed_paths:
+  - .
+
+operator: "operator"
+
+audit:
+  log_dir: ".audit_logs"
+  max_result_chars: 500
+
+verification:
+  mode: always
+
+max_turns: 20

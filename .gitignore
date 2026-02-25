@@ -1,0 +1,128 @@
+# =============================================================================
+# Orchestration Framework — .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# CREDENTIALS & SECRETS — never commit these
+# -----------------------------------------------------------------------------
+.env
+.env.*
+*.env
+!*.env.example        # allow example/template env files
+
+# If you add real API keys or passwords to an MCP server's env: block in a
+# YAML file, keep that file out of the repo. Suggested naming convention:
+agents/private_*.yaml
+agents/prod_*.yaml
+agents/local_*.yaml
+
+# -----------------------------------------------------------------------------
+# AUDIT LOGS — operational data, may contain sensitive tool args and results
+# -----------------------------------------------------------------------------
+.audit_logs/
+audit_logs/
+logs/
+*.jsonl
+
+# -----------------------------------------------------------------------------
+# PYTHON
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.manifest
+*.spec
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# Type checking / linting
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+
+# Testing
+.pytest_cache/
+.tox/
+.nox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+nosetests.xml
+test-results/
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# -----------------------------------------------------------------------------
+# OPERATING SYSTEM
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# -----------------------------------------------------------------------------
+# CLAUDE CODE — workspace-local settings (user-specific, not project config)
+# -----------------------------------------------------------------------------
+.claude/
+
+# -----------------------------------------------------------------------------
+# EDITORS & IDEs
+# -----------------------------------------------------------------------------
+.vscode/
+!.vscode/extensions.json   # allow shared extension recommendations
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*.swn
+.vim/
+*.orig
+*.rej
+
+# -----------------------------------------------------------------------------
+# MISC
+# -----------------------------------------------------------------------------
+*.bak
+*.tmp
+*.temp

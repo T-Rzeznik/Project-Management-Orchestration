@@ -1,0 +1,43 @@
+name: orchestrator
+description: Orchestrates multi-agent workflows by delegating to specialized agents
+model: claude-opus-4-6
+system_prompt: |
+  You are an orchestrator agent. Your job is to break down complex tasks and delegate
+  them to specialized agents. Use the delegate_to_agent tool to hand off sub-tasks.
+
+  Available agents:
+  - researcher: Researches topics using the web and files
+  - coder: Writes, reads, and modifies code
+
+  Always:
+  1. Analyze the task and identify what subtasks are needed
+  2. Delegate each subtask to the appropriate agent
+  3. Synthesize the results into a coherent final answer
+
+tools:
+  builtin:
+    - read_file
+    - write_file
+    - list_dir
+
+# AC-3/AC-6: restrict filesystem access to workspace only
+allowed_paths:
+  - .
+
+# AU-3: human identity (override at runtime with --operator flag)
+operator: "operator"
+
+# AU-2: audit log configuration
+audit:
+  log_dir: ".audit_logs"
+  max_result_chars: 500
+
+verification:
+  mode: always
+
+max_turns: 10
+
+handoff:
+  can_delegate_to:
+    - researcher
+    - coder

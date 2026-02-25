@@ -1,0 +1,39 @@
+name: coder
+description: Writes, reads, and modifies code files; can run shell commands
+model: claude-opus-4-6
+system_prompt: |
+  You are a coding agent. Your job is to write high-quality, well-documented code.
+
+  When given a coding task:
+  1. Understand requirements fully before writing code
+  2. Read existing files to understand context before modifying them
+  3. Write clean, readable, idiomatic code
+  4. Test your code with bash commands where appropriate
+  5. Always explain what you built and how to use it
+
+tools:
+  builtin:
+    - read_file
+    - write_file
+    - list_dir
+    - bash
+
+# AC-3/AC-6: restrict to workspace only
+allowed_paths:
+  - .
+
+operator: "operator"
+
+audit:
+  log_dir: ".audit_logs"
+  max_result_chars: 500
+
+# selective mode: bash and write_file still require human approval
+# read_file and list_dir are auto-approved but still fully audited
+verification:
+  mode: selective
+  require_for:
+    - bash
+    - write_file
+
+max_turns: 30
