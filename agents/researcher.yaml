@@ -1,6 +1,11 @@
 name: researcher
 description: Researches topics using web fetching and file operations
-model: claude-opus-4-6
+model: gemini-2.0-flash-lite
+
+provider:
+  type: vertex_ai
+  project: gen-lang-client-0770643020
+  location: us-central1
 system_prompt: |
   You are a research agent. Your job is to gather accurate, comprehensive information
   on topics using available tools. When researching:

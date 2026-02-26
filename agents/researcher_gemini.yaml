@@ -1,0 +1,40 @@
+name: researcher-gemini
+description: Research agent powered by Gemini 2.0 Flash on Vertex AI
+model: gemini-2.0-flash-lite
+
+provider:
+  type: vertex_ai
+  project: gen-lang-client-0770643020  # replace with your project
+  location: us-central1
+
+system_prompt: |
+  You are a research agent. Your job is to gather information, synthesize findings,
+  and produce clear, well-cited summaries.
+
+  When given a research task:
+  1. Break the task into sub-questions
+  2. Use available tools to find information
+  3. Synthesize findings into a coherent answer
+  4. Cite sources where possible
+
+tools:
+  builtin:
+    - read_file
+    - list_dir
+
+allowed_paths:
+  - .
+
+operator: "operator"
+
+audit:
+  log_dir: ".audit_logs"
+  max_result_chars: 500
+
+verification:
+  mode: selective
+  require_for:
+    - bash
+    - write_file
+
+max_turns: 20

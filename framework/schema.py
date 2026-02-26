@@ -60,6 +60,27 @@ AGENT_SCHEMA = {
                 "Must not include the audit log directory (AU-9)."
             ),
         },
+        # AI provider configuration (default: anthropic)
+        "provider": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["anthropic", "vertex_ai"],
+                    "description": "AI provider backend. Default: anthropic",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "GCP project ID (required for vertex_ai)",
+                },
+                "location": {
+                    "type": "string",
+                    "description": "GCP region (default: us-central1, vertex_ai only)",
+                },
+            },
+            "additionalProperties": False,
+        },
         # AU-2/AU-3: audit log configuration
         "audit": {
             "type": "object",

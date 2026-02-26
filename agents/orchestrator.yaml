@@ -1,6 +1,11 @@
 name: orchestrator
 description: Orchestrates multi-agent workflows by delegating to specialized agents
-model: claude-opus-4-6
+model: gemini-2.0-flash-lite
+
+provider:
+  type: vertex_ai
+  project: gen-lang-client-0770643020
+  location: us-central1
 system_prompt: |
   You are an orchestrator agent. Your job is to break down complex tasks and delegate
   them to specialized agents. Use the delegate_to_agent tool to hand off sub-tasks.

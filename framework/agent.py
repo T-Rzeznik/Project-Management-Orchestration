@@ -13,17 +13,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import anthropic
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
 from framework.audit_logger import AuditEventType
+from framework.providers.base import (
+    NormalizedTextBlock,
+    NormalizedToolUseBlock,
+)
 from framework.secret_scrubber import scrub_dict, scrub_string
 
 if TYPE_CHECKING:
     from framework.audit_logger import AuditLogger
     from framework.mcp_client import MCPClientManager
+    from framework.providers.base import BaseProvider
     from framework.tool_registry import ToolRegistry
     from framework.verification import VerificationGate
 
@@ -42,7 +46,7 @@ class Agent:
         tool_registry: "ToolRegistry",
         mcp_manager: "MCPClientManager",
         verification_gate: "VerificationGate",
-        anthropic_client: anthropic.Anthropic | None = None,
+        provider: "BaseProvider | None" = None,
         audit_logger: "AuditLogger | None" = None,
     ):
         self.config = config
@@ -54,7 +58,10 @@ class Agent:
         self.tool_registry = tool_registry
         self.mcp_manager = mcp_manager
         self.gate = verification_gate
-        self.client = anthropic_client or anthropic.Anthropic()
+        if provider is None:
+            from framework.providers.anthropic_provider import AnthropicProvider
+            provider = AnthropicProvider()
+        self.provider = provider
         self._audit = audit_logger
 
     # ------------------------------------------------------------------
@@ -113,15 +120,18 @@ class Agent:
                 turn += 1
                 console.print(f"[dim][{self.name}] Turn {turn}/{self.max_turns}[/dim]")
 
-                response = self.client.messages.create(
+                response = self.provider.create_message(
                     model=self.model,
-                    max_tokens=8096,
                     system=self.system_prompt,
-                    tools=tools if tools else anthropic.NOT_GIVEN,
                     messages=messages,
+                    tools=tools,
+                    max_tokens=8096,
                 )
 
-                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "assistant",
+                    "content": [b.to_dict() for b in response.content],
+                })
 
                 if response.stop_reason == "end_turn":
                     final_text = self._extract_text(response.content)

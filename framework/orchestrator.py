@@ -20,7 +20,6 @@ from typing import Any
 import yaml
 from rich.console import Console
 
-import anthropic
 from framework.agent import Agent
 from framework.audit_logger import AuditEventType, AuditLogger
 from framework.mcp_client import MCPClientManager
@@ -69,7 +68,6 @@ class Orchestrator:
         self.agents_dir = Path(agents_dir)
         self._configs: dict[str, dict] = {}
         self._yaml_paths: dict[str, Path] = {}
-        self._anthropic_client = anthropic.Anthropic()
         self._audit = audit_logger
 
     # ------------------------------------------------------------------
@@ -166,12 +164,16 @@ class Orchestrator:
             console.print(f"[dim]Connecting MCP servers for agent '{name}'...[/dim]")
             mcp_manager.connect_all(mcp_configs, audit_logger=self._audit)
 
+        from framework.providers.factory import create_provider
+
+        provider = create_provider(config)
+
         return Agent(
             config=config,
             tool_registry=registry,
             mcp_manager=mcp_manager,
             verification_gate=gate,
-            anthropic_client=self._anthropic_client,
+            provider=provider,
             audit_logger=self._audit,
         )
 

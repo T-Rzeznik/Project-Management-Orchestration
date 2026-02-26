@@ -121,7 +121,6 @@ def chat(
     ),
 ):
     """Interactive chat session with an agent."""
-    import anthropic as _anthropic
     from framework.orchestrator import Orchestrator
 
     session, audit = _create_session_and_logger(operator)
@@ -174,15 +173,18 @@ def chat(
             turn = 0
             while turn < agent.max_turns:
                 turn += 1
-                response = agent.client.messages.create(
+                response = agent.provider.create_message(
                     model=agent.model,
-                    max_tokens=8096,
                     system=agent.system_prompt,
-                    tools=tools if tools else _anthropic.NOT_GIVEN,
                     messages=messages,
+                    tools=tools,
+                    max_tokens=8096,
                 )
 
-                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "assistant",
+                    "content": [b.to_dict() for b in response.content],
+                })
 
                 if response.stop_reason == "end_turn":
                     text = agent._extract_text(response.content)
