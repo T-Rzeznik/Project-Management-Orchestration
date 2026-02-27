@@ -11,6 +11,7 @@ export default function ProjectDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [showAnalyze, setShowAnalyze] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchProjects = async () => {
     try {
@@ -64,6 +65,19 @@ export default function ProjectDashboard() {
         </div>
       </div>
 
+      {/* Search */}
+      {!loading && projects.length > 0 && (
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="Search projects..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 text-white placeholder-gray-500 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+      )}
+
       {/* Content */}
       {loading && (
         <div className="flex items-center justify-center h-64">
@@ -98,13 +112,22 @@ export default function ProjectDashboard() {
         </div>
       )}
 
-      {!loading && projects.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} onDelete={handleDelete} />
-          ))}
-        </div>
-      )}
+      {!loading && projects.length > 0 && (() => {
+        const filtered = projects.filter((p) =>
+          p.name.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        return filtered.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((project) => (
+              <ProjectCard key={project.id} project={project} onDelete={handleDelete} />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-64">
+            <p className="text-gray-400">No projects match your search</p>
+          </div>
+        )
+      })()}
 
       {showAnalyze && (
         <AnalyzeModal
