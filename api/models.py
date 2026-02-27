@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 
 class Task(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     description: str
     priority: str = "medium"  # high | medium | low
@@ -55,6 +56,7 @@ class UpdateProjectRequest(BaseModel):
     github_url: Optional[str] = None
     documentation: Optional[str] = None
     status: Optional[str] = None
+    tasks: Optional[List[Task]] = None
 
 
 class AnalyzeRequest(BaseModel):

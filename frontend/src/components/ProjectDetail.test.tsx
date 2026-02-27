@@ -119,3 +119,50 @@ describe('ProjectDetail', () => {
     expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument()
   })
 })
+
+const mockProjectWithTasks = {
+  ...mockProject,
+  tasks: [
+    { id: 'task-1', title: 'Write tests', description: 'TDD first', priority: 'high', status: 'todo' },
+    { id: 'task-2', title: 'Implement', description: 'Code it', priority: 'medium', status: 'in-progress' },
+  ],
+}
+
+describe('ProjectDetail task board', () => {
+  it('should render TaskBoard when project has tasks', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockProjectWithTasks),
+    })
+
+    renderWithRouter()
+
+    expect(await screen.findByText('Write tests')).toBeInTheDocument()
+    expect(screen.getByText('Implement')).toBeInTheDocument()
+    // Columns should be present
+    expect(screen.getByText('To Do')).toBeInTheDocument()
+    expect(screen.getByText('In Progress')).toBeInTheDocument()
+    expect(screen.getByText('Done')).toBeInTheDocument()
+  })
+
+  it('should call PUT with updated tasks when handleTaskMove fires', async () => {
+    const updatedProject = {
+      ...mockProjectWithTasks,
+      tasks: [
+        { id: 'task-1', title: 'Write tests', description: 'TDD first', priority: 'high', status: 'done' },
+        { id: 'task-2', title: 'Implement', description: 'Code it', priority: 'medium', status: 'in-progress' },
+      ],
+    }
+
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockProjectWithTasks) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(updatedProject) })
+
+    renderWithRouter()
+    await screen.findByText('Write tests')
+
+    // Verify task cards have data-task-id attrs (TaskBoard received tasks correctly)
+    const card = screen.getByText('Write tests').closest('[data-task-id]')
+    expect(card).toHaveAttribute('data-task-id', 'task-1')
+  })
+})

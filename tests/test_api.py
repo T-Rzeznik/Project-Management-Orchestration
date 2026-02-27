@@ -123,3 +123,54 @@ def test_update_preserves_unset_fields():
     assert data["description"] == "Changed"
     assert data["tech_stack"] == ["Python"]
     assert data["documentation"] == "Important notes"
+
+
+# --- Task ID and task update tests ---
+
+
+def test_task_has_auto_generated_id():
+    """Tasks should receive a unique id when created via PUT."""
+    project = _create_project("Task ID Project")
+    res = client.put(
+        f"/api/projects/{project['id']}",
+        json={
+            "tasks": [
+                {"title": "Task A", "description": "Desc A"},
+                {"title": "Task B", "description": "Desc B"},
+            ]
+        },
+    )
+    assert res.status_code == 200
+    tasks = res.json()["tasks"]
+    assert len(tasks) == 2
+    assert tasks[0]["id"]  # UUID auto-generated
+    assert tasks[1]["id"]
+    assert tasks[0]["id"] != tasks[1]["id"]
+
+
+def test_update_task_status_via_put():
+    """PUT /api/projects/{id} with tasks should persist status changes."""
+    project = _create_project("Kanban Project")
+    # Add initial tasks
+    res = client.put(
+        f"/api/projects/{project['id']}",
+        json={
+            "tasks": [
+                {"title": "Task A", "description": "Desc A", "status": "todo"},
+                {"title": "Task B", "description": "Desc B", "status": "in-progress"},
+            ]
+        },
+    )
+    assert res.status_code == 200
+    tasks = res.json()["tasks"]
+    assert tasks[0]["status"] == "todo"
+
+    # Move Task A to done
+    tasks[0]["status"] = "done"
+    res2 = client.put(
+        f"/api/projects/{project['id']}",
+        json={"tasks": tasks},
+    )
+    assert res2.status_code == 200
+    assert res2.json()["tasks"][0]["status"] == "done"
+    assert res2.json()["tasks"][1]["status"] == "in-progress"

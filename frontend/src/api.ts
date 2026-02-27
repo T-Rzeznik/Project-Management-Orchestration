@@ -1,4 +1,4 @@
-import type { Project, CreateProjectData } from './types'
+import type { Project, CreateProjectData, Task } from './types'
 
 const BASE = '/api'
 
@@ -40,7 +40,7 @@ export async function getProject(id: string): Promise<Project> {
   return res.json()
 }
 
-export async function updateProject(id: string, data: Partial<CreateProjectData> & { status?: string }): Promise<Project> {
+export async function updateProject(id: string, data: Partial<CreateProjectData> & { status?: string; tasks?: Task[] }): Promise<Project> {
   const res = await fetch(`${BASE}/projects/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

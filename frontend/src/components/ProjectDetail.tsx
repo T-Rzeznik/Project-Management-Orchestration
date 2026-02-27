@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getProject, deleteProject, updateProject } from '../api'
-import type { Project } from '../types'
+import type { Project, Task } from '../types'
 import TechStackBadges from './TechStackBadges'
 import TaskBoard from './TaskBoard'
 import MilestoneList from './MilestoneList'
@@ -69,6 +69,24 @@ export default function ProjectDetail() {
       setError(e instanceof Error ? e.message : 'Failed to save')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleTaskMove = async (taskId: string, newStatus: Task['status']) => {
+    if (!project) return
+
+    const prevProject = project
+    const updatedTasks = project.tasks.map((t) =>
+      t.id === taskId ? { ...t, status: newStatus } : t,
+    )
+    setProject({ ...project, tasks: updatedTasks })
+
+    try {
+      const saved = await updateProject(project.id, { tasks: updatedTasks })
+      setProject(saved)
+    } catch (e: unknown) {
+      setProject(prevProject)
+      setError(e instanceof Error ? e.message : 'Failed to move task')
     }
   }
 
@@ -320,7 +338,7 @@ export default function ProjectDetail() {
       {!editing && project.tasks.length > 0 && (
         <section>
           <h2 className="text-xl font-semibold text-white mb-4">Tasks</h2>
-          <TaskBoard tasks={project.tasks} />
+          <TaskBoard tasks={project.tasks} onTaskMove={handleTaskMove} />
         </section>
       )}
 
