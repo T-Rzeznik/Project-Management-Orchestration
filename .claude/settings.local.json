@@ -15,7 +15,12 @@
       "Bash(pytest:*)",
       "Bash(pip install:*)",
       "Bash(npx vitest:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push origin main)",
+      "Bash(git pull origin main)",
+      "Bash(git stash)",
+      "Bash(git stash pop)",
+      "Bash(git commit:*)"
     ]
   }
 }
