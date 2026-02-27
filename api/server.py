@@ -61,6 +61,52 @@ def _run_analyzer(github_url: str) -> dict:
     return json.loads(result_str)
 
 
+@app.get("/api/logs")
+async def list_log_sessions():
+    """Return all audit log sessions from .audit_logs/*.jsonl, newest first."""
+    log_dir = Path(__file__).parent.parent / ".audit_logs"
+    if not log_dir.exists():
+        return []
+
+    sessions = []
+    for log_file in sorted(log_dir.glob("*.jsonl"), reverse=True)[:100]:
+        events = []
+        try:
+            with open(log_file, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        events.append(json.loads(line))
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        if not events:
+            continue
+
+        # Derive session-level summary from events
+        start_evt = next((e for e in events if e.get("event_type") == "SESSION_START"), events[0])
+        end_evt = next((e for e in events if e.get("event_type") == "AGENT_TASK_END"), None)
+        agent_names = list(dict.fromkeys(
+            e["agent_name"] for e in events if e.get("agent_name")
+        ))
+        total_input = sum(e.get("total_input_tokens", 0) or 0 for e in events)
+        total_output = sum(e.get("total_output_tokens", 0) or 0 for e in events)
+
+        sessions.append({
+            "session_id": start_evt.get("session_id", log_file.stem),
+            "file": log_file.name,
+            "start_time": start_evt.get("timestamp_utc"),
+            "operator": start_evt.get("operator"),
+            "agent_names": agent_names,
+            "event_count": len(events),
+            "total_input_tokens": total_input,
+            "total_output_tokens": total_output,
+            "events": events,
+        })
+
+    return sessions
+
+
 @app.post("/api/analyze")
 async def analyze_repo(body: AnalyzeRequest):
     github_url = body.github_url.strip()

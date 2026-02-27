@@ -36,6 +36,8 @@ class NormalizedToolUseBlock:
 class NormalizedResponse:
     stop_reason: str  # "end_turn" | "tool_use"
     content: list[NormalizedTextBlock | NormalizedToolUseBlock]
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class BaseProvider(ABC):

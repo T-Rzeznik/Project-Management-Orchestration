@@ -110,7 +110,12 @@ class VertexProvider(BaseProvider):
                         input=block.input or {},
                     )
                 )
-        return NormalizedResponse(stop_reason=response.stop_reason, content=content)
+        return NormalizedResponse(
+            stop_reason=response.stop_reason,
+            content=content,
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+        )
 
     # ------------------------------------------------------------------
     # Gemini via vertexai SDK (stateful chat session)
@@ -246,9 +251,15 @@ class VertexProvider(BaseProvider):
                 )
                 has_tool_calls = True
 
+        usage = getattr(response, "usage_metadata", None)
+        input_tokens = getattr(usage, "prompt_token_count", 0) or 0
+        output_tokens = getattr(usage, "candidates_token_count", 0) or 0
+
         return NormalizedResponse(
             stop_reason="tool_use" if has_tool_calls else "end_turn",
             content=content,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )
 
     @staticmethod

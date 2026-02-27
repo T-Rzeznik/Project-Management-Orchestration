@@ -47,4 +47,9 @@ class AnthropicProvider(BaseProvider):
                     )
                 )
 
-        return NormalizedResponse(stop_reason=response.stop_reason, content=content)
+        return NormalizedResponse(
+            stop_reason=response.stop_reason,
+            content=content,
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+        )

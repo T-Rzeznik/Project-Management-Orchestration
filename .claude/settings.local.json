@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gcloud auth:*)",
+      "Bash(\"/c/Program Files \\(x86\\)/Google/Cloud SDK/google-cloud-sdk/bin/gcloud\" auth:*)",
+      "Bash(CLOUDSDK_PYTHON=\"/c/Program Files \\(x86\\)/Google/Cloud SDK/google-cloud-sdk/platform/bundledpython/python.exe\" \"/c/Program Files \\(x86\\)/Google/Cloud SDK/google-cloud-sdk/bin/gcloud\" auth:*)",
+      "Bash(uvicorn api.server:app:*)",
+      "Bash(npm run:*)",
+      "Bash(python:*)"
+    ]
+  }
+}

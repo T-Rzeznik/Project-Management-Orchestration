@@ -114,6 +114,8 @@ class Agent:
 
         turn = 0
         final_text = ""
+        total_input_tokens = 0
+        total_output_tokens = 0
 
         try:
             while turn < self.max_turns:
@@ -127,6 +129,9 @@ class Agent:
                     tools=tools,
                     max_tokens=8096,
                 )
+
+                total_input_tokens += response.input_tokens
+                total_output_tokens += response.output_tokens
 
                 messages.append({
                     "role": "assistant",
@@ -169,6 +174,8 @@ class Agent:
                     model=self.model,
                     turns_used=turn,
                     outcome="completed",
+                    total_input_tokens=total_input_tokens or None,
+                    total_output_tokens=total_output_tokens or None,
                 )
 
         return final_text

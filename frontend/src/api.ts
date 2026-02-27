@@ -31,3 +31,40 @@ export async function deleteProject(id: string): Promise<void> {
   const res = await fetch(`${BASE}/projects/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete project')
 }
+
+export interface AuditEvent {
+  event_id: string
+  timestamp_utc: string
+  session_id: string
+  event_type: string
+  agent_name?: string
+  model?: string
+  tool_name?: string
+  tool_input_scrubbed?: Record<string, unknown>
+  outcome?: string
+  result_summary?: string
+  task_summary?: string
+  turns_used?: number
+  total_input_tokens?: number
+  total_output_tokens?: number
+  verification_choice?: string
+  operator?: string
+}
+
+export interface LogSession {
+  session_id: string
+  file: string
+  start_time: string
+  operator?: string
+  agent_names: string[]
+  event_count: number
+  total_input_tokens: number
+  total_output_tokens: number
+  events: AuditEvent[]
+}
+
+export async function fetchLogs(): Promise<LogSession[]> {
+  const res = await fetch('/api/logs')
+  if (!res.ok) throw new Error('Failed to load logs')
+  return res.json()
+}
