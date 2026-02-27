@@ -40,6 +40,19 @@ export async function getProject(id: string): Promise<Project> {
   return res.json()
 }
 
+export async function updateProject(id: string, data: Partial<CreateProjectData> & { status?: string }): Promise<Project> {
+  const res = await fetch(`${BASE}/projects/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail ?? 'Failed to update project')
+  }
+  return res.json()
+}
+
 export async function deleteProject(id: string): Promise<void> {
   const res = await fetch(`${BASE}/projects/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete project')

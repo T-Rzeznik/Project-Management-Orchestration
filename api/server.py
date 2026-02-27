@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api import storage
-from api.models import AnalyzeRequest, CreateProjectRequest, Project
+from api.models import AnalyzeRequest, CreateProjectRequest, Project, UpdateProjectRequest
 
 app = FastAPI(title="Project Management Orchestration API", version="1.0.0")
 
@@ -157,6 +157,21 @@ async def create_project(body: CreateProjectRequest):
 @app.get("/api/projects")
 async def list_projects():
     return storage.list_projects()
+
+
+@app.put("/api/projects/{project_id}")
+async def update_project(project_id: str, body: UpdateProjectRequest):
+    """Update an existing project (partial update — only provided fields are changed)."""
+    existing = storage.get_project(project_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    updates = body.model_dump(exclude_none=True)
+    existing.update(updates)
+    existing["updated_at"] = datetime.utcnow().isoformat()
+
+    storage.save_project(existing)
+    return existing
 
 
 @app.get("/api/projects/{project_id}")

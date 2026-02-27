@@ -1,4 +1,4 @@
-"""Tests for the project creation API endpoint."""
+"""Tests for the project API endpoints."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -57,3 +57,69 @@ def test_create_project_missing_name():
     """POST /api/projects without name should return 422."""
     res = client.post("/api/projects", json={"description": "no name"})
     assert res.status_code == 422
+
+
+# --- Update project tests ---
+
+
+def _create_project(name: str = "Test Project", **kwargs) -> dict:
+    """Helper: create a project and return its data."""
+    res = client.post("/api/projects", json={"name": name, **kwargs})
+    assert res.status_code == 200
+    return res.json()
+
+
+def test_update_project_name():
+    """PUT /api/projects/{id} with just name should update it."""
+    project = _create_project("Original Name")
+    res = client.put(f"/api/projects/{project['id']}", json={"name": "New Name"})
+    assert res.status_code == 200
+    assert res.json()["name"] == "New Name"
+
+
+def test_update_project_all_fields():
+    """PUT /api/projects/{id} with all fields should update them all."""
+    project = _create_project()
+    payload = {
+        "name": "Updated",
+        "description": "Updated desc",
+        "tech_stack": ["Go", "Rust"],
+        "github_url": "https://github.com/new/repo",
+        "documentation": "New docs",
+        "status": "completed",
+    }
+    res = client.put(f"/api/projects/{project['id']}", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["name"] == "Updated"
+    assert data["description"] == "Updated desc"
+    assert data["tech_stack"] == ["Go", "Rust"]
+    assert data["github_url"] == "https://github.com/new/repo"
+    assert data["documentation"] == "New docs"
+    assert data["status"] == "completed"
+
+
+def test_update_project_not_found():
+    """PUT /api/projects/{id} with nonexistent id should return 404."""
+    res = client.put("/api/projects/nonexistent-id", json={"name": "X"})
+    assert res.status_code == 404
+
+
+def test_update_preserves_unset_fields():
+    """PUT with only description should not wipe other fields."""
+    project = _create_project(
+        "Keep Me",
+        description="Original",
+        tech_stack=["Python"],
+        documentation="Important notes",
+    )
+    res = client.put(
+        f"/api/projects/{project['id']}",
+        json={"description": "Changed"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["name"] == "Keep Me"
+    assert data["description"] == "Changed"
+    assert data["tech_stack"] == ["Python"]
+    assert data["documentation"] == "Important notes"

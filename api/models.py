@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -46,6 +46,15 @@ class CreateProjectRequest(BaseModel):
     tech_stack: List[str] = []
     github_url: str = ""
     documentation: str = ""
+
+
+class UpdateProjectRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    tech_stack: Optional[List[str]] = None
+    github_url: Optional[str] = None
+    documentation: Optional[str] = None
+    status: Optional[str] = None
 
 
 class AnalyzeRequest(BaseModel):
