@@ -23,9 +23,10 @@ class Milestone(BaseModel):
 
 class Project(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    github_url: str
+    github_url: str = ""
     name: str
     description: str = ""
+    documentation: str = ""
     summary: str = ""
     tech_stack: List[str] = []
     stars: int = 0
@@ -37,6 +38,14 @@ class Project(BaseModel):
     status: str = "active"
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
+class CreateProjectRequest(BaseModel):
+    name: str
+    description: str = ""
+    tech_stack: List[str] = []
+    github_url: str = ""
+    documentation: str = ""
 
 
 class AnalyzeRequest(BaseModel):

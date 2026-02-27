@@ -12,9 +12,10 @@ export interface Milestone {
 
 export interface Project {
   id: string
-  github_url: string
+  github_url?: string
   name: string
   description: string
+  documentation?: string
   summary: string
   tech_stack: string[]
   stars: number
@@ -26,4 +27,12 @@ export interface Project {
   status: string
   created_at: string
   updated_at: string
+}
+
+export interface CreateProjectData {
+  name: string
+  description?: string
+  tech_stack?: string[]
+  github_url?: string
+  documentation?: string
 }

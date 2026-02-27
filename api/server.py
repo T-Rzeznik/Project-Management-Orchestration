@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api import storage
-from api.models import AnalyzeRequest
+from api.models import AnalyzeRequest, CreateProjectRequest, Project
 
 app = FastAPI(title="Project Management Orchestration API", version="1.0.0")
 
@@ -138,6 +138,20 @@ async def analyze_repo(body: AnalyzeRequest):
 
     storage.save_project(project)
     return project
+
+
+@app.post("/api/projects")
+async def create_project(body: CreateProjectRequest):
+    """Create a project manually (no GitHub analysis)."""
+    project = Project(
+        name=body.name,
+        description=body.description,
+        tech_stack=body.tech_stack,
+        github_url=body.github_url,
+        documentation=body.documentation,
+    )
+    storage.save_project(project.model_dump())
+    return project.model_dump()
 
 
 @app.get("/api/projects")
