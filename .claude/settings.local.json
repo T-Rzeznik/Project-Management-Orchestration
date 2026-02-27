@@ -10,7 +10,12 @@
       "mcp__filesystem__directory_tree",
       "Bash(wc -l framework/*.py tools/*.py main.py api/*.py)",
       "Bash(find . -name \"*.yaml\" -exec wc -l {} +)",
-      "Bash(wc -l frontend/src/components/*.tsx frontend/src/*.ts frontend/src/*.tsx)"
+      "Bash(wc -l frontend/src/components/*.tsx frontend/src/*.ts frontend/src/*.tsx)",
+      "Bash(cmd.exe:*)",
+      "Bash(pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(npx vitest:*)",
+      "Bash(git add:*)"
     ]
   }
 }

@@ -193,6 +193,10 @@ max_turns: 20
 | `AUDIT_LOG_DIR` | Override audit log directory (default: `.audit_logs/`) |
 | `GOOGLE_APPLICATION_CREDENTIALS` | GCP service account key for Vertex AI (alternative to `gcloud auth application-default login`) |
 
+## Skills
+
+- `/commit-push` — Analyzes the diff, runs tests (pytest + vitest), generates a commit message, and pushes to main. Triggers on "commit and push", "push my changes", "ship it". Blocks on secrets or test failures. Confirms before pushing.
+
 ## FedRAMP controls at a glance
 
 Every tool call produces two audit events (`TOOL_CALL_PROPOSED` before showing to the human, `VERIFICATION_DECISION` after). The audit log directory is always added to `PathEnforcer.protected_dirs` so agents cannot modify their own logs. Secret scrubbing runs on tool args before any audit write; the console shows real args to the authorized operator.
