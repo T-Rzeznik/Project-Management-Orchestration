@@ -15,6 +15,64 @@ python -m uvicorn api.server:app --reload --port 8000
 cd frontend && npm install && npm run dev   # → http://localhost:5173
 ```
 
+## Development Methodology: Test-Driven Development (TDD)
+
+This project enforces Test-Driven Development. Every code change follows the Red-Green-Refactor cycle:
+
+1. **Red** — Write a failing test that defines the expected behavior. Run it and confirm it fails.
+2. **Green** — Write the minimum implementation code to make the test pass. Run the test and confirm it passes.
+3. **Refactor** — Clean up the implementation while keeping tests green. Run the full suite to confirm no regressions.
+
+### Hard Rules
+
+- **No implementation code without a failing test first.** If you are about to write a function, endpoint, component, or module, you must first write a test that exercises it and confirm the test fails (Red phase).
+- **No skipping the Red phase.** Running the test and seeing it fail is mandatory. This proves the test actually tests something.
+- **Tests are not optional or deferred.** "I'll add tests later" is not acceptable. Tests come first, always.
+- **Refactoring requires a green suite.** Before and after every refactor step, the full test suite must pass.
+
+### Test Tooling
+
+**Python (framework + API):**
+- Test runner: `pytest`
+- Async tests: `pytest-asyncio`
+- HTTP/API tests: `httpx` (with `TestClient` for FastAPI)
+- Test directory: `tests/` at project root, mirroring `framework/` and `api/` structure
+- Naming: `test_<module>.py` with functions named `test_<behavior>()`
+- Run: `pytest` (from project root)
+
+**Frontend (React + TypeScript):**
+- Test runner: `vitest`
+- Component testing: `@testing-library/react` + `@testing-library/jest-dom`
+- DOM environment: `jsdom`
+- Test files: colocated as `<Component>.test.tsx` or in `__tests__/` directories
+- Naming: `describe('<Component>')` with `it('should <behavior>')` blocks
+- Run: `cd frontend && npx vitest run`
+
+### TDD Workflow Example (Python)
+
+```bash
+# 1. Write the test in tests/test_path_enforcer.py
+# 2. Run it — expect failure:
+pytest tests/test_path_enforcer.py -v
+# 3. Implement just enough in framework/path_enforcer.py
+# 4. Run again — expect pass:
+pytest tests/test_path_enforcer.py -v
+# 5. Refactor, run full suite:
+pytest
+```
+
+### TDD Workflow Example (Frontend)
+
+```bash
+# 1. Write the test in frontend/src/components/ProjectCard.test.tsx
+# 2. Run it — expect failure:
+cd frontend && npx vitest run src/components/ProjectCard.test.tsx
+# 3. Implement just enough in ProjectCard.tsx
+# 4. Run again — expect pass
+# 5. Refactor, run full suite:
+cd frontend && npx vitest run
+```
+
 ## CLI usage (framework only, no UI)
 
 ```bash
@@ -125,6 +183,7 @@ max_turns: 20
 1. Create `agents/myagent.yaml` following the schema above.
 2. Add the agent's `provider` block if using Vertex AI.
 3. All agents are auto-loaded by `Orchestrator.load_agents_dir()` (used by `orchestrate` CLI command and the FastAPI server on analysis requests).
+4. If the new agent introduces runtime-injected tools (via `register_injector()`), write integration tests for the tool factory functions in `tests/` before wiring them into the agent YAML.
 
 ## Environment variables
 

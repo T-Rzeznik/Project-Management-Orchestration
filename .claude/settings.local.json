@@ -6,7 +6,11 @@
       "Bash(CLOUDSDK_PYTHON=\"/c/Program Files \\(x86\\)/Google/Cloud SDK/google-cloud-sdk/platform/bundledpython/python.exe\" \"/c/Program Files \\(x86\\)/Google/Cloud SDK/google-cloud-sdk/bin/gcloud\" auth:*)",
       "Bash(uvicorn api.server:app:*)",
       "Bash(npm run:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "mcp__filesystem__directory_tree",
+      "Bash(wc -l framework/*.py tools/*.py main.py api/*.py)",
+      "Bash(find . -name \"*.yaml\" -exec wc -l {} +)",
+      "Bash(wc -l frontend/src/components/*.tsx frontend/src/*.ts frontend/src/*.tsx)"
     ]
   }
 }
