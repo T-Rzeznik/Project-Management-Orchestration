@@ -37,3 +37,14 @@ export interface CreateProjectData {
   github_url?: string
   documentation?: string
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface ChatResponse {
+  assistant_message: string
+  input_tokens: number
+  output_tokens: number
+}

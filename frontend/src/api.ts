@@ -1,4 +1,4 @@
-import type { Project, CreateProjectData, Task } from './types'
+import type { Project, CreateProjectData, Task, ChatMessage, ChatResponse } from './types'
 
 const BASE = '/api'
 
@@ -56,6 +56,19 @@ export async function updateProject(id: string, data: Partial<CreateProjectData>
 export async function deleteProject(id: string): Promise<void> {
   const res = await fetch(`${BASE}/projects/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Failed to delete project')
+}
+
+export async function sendChatMessage(messages: ChatMessage[]): Promise<ChatResponse> {
+  const res = await fetch(`${BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail ?? 'Chat request failed')
+  }
+  return res.json()
 }
 
 export interface AuditEvent {

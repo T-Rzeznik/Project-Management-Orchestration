@@ -196,6 +196,7 @@ max_turns: 20
 ## Skills
 
 - `/commit-push` — Analyzes the diff, runs tests (pytest + vitest), generates a commit message, and pushes to main. Triggers on "commit and push", "push my changes", "ship it". Blocks on secrets or test failures. Confirms before pushing.
+- `/dev` — Starts all dev services (FastAPI backend on :8000 + React frontend on :5173). Checks deps and port availability, runs both in background, opens browser. Triggers on "start the app", "run dev", "spin up services".
 
 ## FedRAMP controls at a glance
 

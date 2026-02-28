@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 import json
 import re
@@ -14,7 +17,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api import storage
-from api.models import AnalyzeRequest, CreateProjectRequest, Project, UpdateProjectRequest
+from api.models import (
+    AnalyzeRequest,
+    ChatRequest,
+    ChatResponse,
+    CreateProjectRequest,
+    Project,
+    UpdateProjectRequest,
+)
 
 app = FastAPI(title="Project Management Orchestration API", version="1.0.0")
 
@@ -187,3 +197,61 @@ async def delete_project(project_id: str):
     if not storage.delete_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
     return {"message": "Project deleted"}
+
+
+# --- AI Chat ---
+
+_chat_provider = None
+
+_CHAT_SYSTEM_PROMPT = (
+    "You are a helpful AI assistant integrated into a project management application."
+)
+
+
+def _get_chat_provider():
+    """Lazy-init singleton Gemini GenerativeModel for chat."""
+    global _chat_provider
+    if _chat_provider is None:
+        import os
+        import google.generativeai as genai
+
+        genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+        _chat_provider = genai
+    return _chat_provider
+
+
+def _call_chat_provider(genai_mod, model: str, messages: list[dict]) -> dict:
+    """Blocking call to Gemini — runs in thread pool."""
+    gmodel = genai_mod.GenerativeModel(
+        model_name=model,
+        system_instruction=_CHAT_SYSTEM_PROMPT,
+    )
+
+    # Convert messages to Gemini content format
+    contents = []
+    for msg in messages:
+        role = "user" if msg["role"] == "user" else "model"
+        contents.append({"role": role, "parts": [msg["content"]]})
+
+    response = gmodel.generate_content(contents)
+
+    usage = response.usage_metadata
+    return {
+        "assistant_message": response.text,
+        "input_tokens": getattr(usage, "prompt_token_count", 0) or 0,
+        "output_tokens": getattr(usage, "candidates_token_count", 0) or 0,
+    }
+
+
+@app.post("/api/chat")
+async def chat(body: ChatRequest):
+    provider = _get_chat_provider()
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(
+            _executor, _call_chat_provider, provider, body.model, messages
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return ChatResponse(**result)

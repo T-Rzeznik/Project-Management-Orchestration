@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -61,3 +61,19 @@ class UpdateProjectRequest(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     github_url: str
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage] = Field(min_length=1)
+    model: str = "gemini-2.5-flash-lite"
+
+
+class ChatResponse(BaseModel):
+    assistant_message: str
+    input_tokens: int
+    output_tokens: int
