@@ -2,8 +2,8 @@
 
 A Python framework for defining AI agents in YAML files and running them with
 full tool access, MCP server integration, and a human-in-the-loop
-**verify-then-commit gate** before every tool call. Built to meet the
-**FedRAMP High** baseline (NIST 800-53 Rev5).
+**verify-then-commit gate** before every tool call. Includes built-in
+**security controls** aligned with NIST 800-53 Rev5.
 
 ---
 
@@ -20,14 +20,14 @@ full tool access, MCP server integration, and a human-in-the-loop
 9. [MCP Server Integration](#9-mcp-server-integration)
 10. [Multi-Agent Handoff](#10-multi-agent-handoff)
 11. [Environment Variables](#11-environment-variables)
-12. [FedRAMP High Controls](#12-fedramp-high-controls)
+12. [Security Controls](#12-security-controls)
 
 ---
 
 ## 1. Project Status
 
 The framework is fully implemented and syntax-verified. All core components are
-wired together and the FedRAMP High security layer is in place. The following
+wired together and the security controls are in place. The following
 capabilities are working:
 
 | Capability | Status |
@@ -124,7 +124,7 @@ orchestration-framework/
 │   ├── mcp_client.py              MCP stdio connections, tool discovery
 │   ├── orchestrator.py            Wires all components, handoff tool injection
 │   ├── path_enforcer.py           Path traversal prevention (AC-3/AC-6/AU-9)
-│   ├── schema.py                  YAML validation + FedRAMP policy checks
+│   ├── schema.py                  YAML validation + security policy checks
 │   ├── secret_scrubber.py         Redacts secrets from audit records (SC-28)
 │   ├── session.py                 Session identity for AU-3 attribution
 │   ├── tool_registry.py           Built-in tool registry, AC-6 enforcement
@@ -262,7 +262,7 @@ handoff:
 
 - `name`, `model`, and `system_prompt` are required.
 - `verification.mode: never` combined with `bash` or `write_file` raises a
-  `ValueError` at load time (FedRAMP High policy — `CM-6`).
+  `ValueError` at load time (security policy — `CM-6`).
 - Unknown top-level keys are rejected (`additionalProperties: false`).
 - MCP server configs require `name`, `transport`, and `command`.
 
@@ -354,7 +354,7 @@ same `session_id`.
 
 ---
 
-## 12. FedRAMP High Controls
+## 12. Security Controls
 
 This section documents every NIST 800-53 Rev5 control implemented in the
 framework, where it is implemented in the code, and why it matters.
@@ -392,7 +392,7 @@ happened.
 
 **Why it matters:**
 Without a defined event catalog, audit records are arbitrary and incomplete.
-A FedRAMP assessor needs to verify that security-relevant events are
+An assessor needs to verify that security-relevant events are
 consistently captured. The enum makes the catalog explicit and code-enforced —
 it cannot be bypassed by adding a new code path without also adding an event type.
 
@@ -643,7 +643,7 @@ those settings.
 ```python
 HIGH_RISK_TOOLS = {"bash", "write_file"}
 if mode == "never" and HIGH_RISK_TOOLS & enabled_tools:
-    raise ValueError("FedRAMP High policy violation: verification mode 'never'...")
+    raise ValueError("Security policy violation: verification mode 'never'...")
 ```
 
 This means the YAML file itself cannot express a configuration that violates
