@@ -1,19 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { listProjects, deleteProject } from '../api'
 import type { Project } from '../types'
 import ProjectCard from './ProjectCard'
-import AnalyzeModal from './AnalyzeModal'
 import CreateProjectModal from './CreateProjectModal'
 
-export default function ProjectDashboard() {
+interface ProjectDashboardProps {
+  refreshKey?: number
+}
+
+export default function ProjectDashboard({ refreshKey }: ProjectDashboardProps) {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showAnalyze, setShowAnalyze] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       setLoading(true)
       const data = await listProjects()
@@ -23,11 +25,11 @@ export default function ProjectDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchProjects()
-  }, [])
+  }, [fetchProjects, refreshKey])
 
   const handleDelete = async (id: string) => {
     await deleteProject(id)
@@ -36,7 +38,6 @@ export default function ProjectDashboard() {
 
   const handleProjectAdded = (project: Project) => {
     setProjects((prev) => [project, ...prev])
-    setShowAnalyze(false)
     setShowCreate(false)
   }
 
@@ -55,12 +56,6 @@ export default function ProjectDashboard() {
           >
             <span className="text-lg leading-none">+</span>
             Create Project
-          </button>
-          <button
-            onClick={() => setShowAnalyze(true)}
-            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors"
-          >
-            Analyze Repo
           </button>
         </div>
       </div>
@@ -94,21 +89,13 @@ export default function ProjectDashboard() {
       {!loading && !error && projects.length === 0 && (
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <h2 className="text-xl font-semibold text-gray-300 mb-2">No projects yet</h2>
-          <p className="text-gray-500 mb-6">Create a project manually or analyze a GitHub repo</p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowCreate(true)}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-            >
-              Create your first project
-            </button>
-            <button
-              onClick={() => setShowAnalyze(true)}
-              className="bg-gray-700 hover:bg-gray-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-            >
-              Analyze a repo
-            </button>
-          </div>
+          <p className="text-gray-500 mb-6">Create a project or use the AI chat to analyze a GitHub repo</p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+          >
+            Create your first project
+          </button>
         </div>
       )}
 
@@ -128,13 +115,6 @@ export default function ProjectDashboard() {
           </div>
         )
       })()}
-
-      {showAnalyze && (
-        <AnalyzeModal
-          onClose={() => setShowAnalyze(false)}
-          onSuccess={handleProjectAdded}
-        />
-      )}
 
       {showCreate && (
         <CreateProjectModal

@@ -2,15 +2,15 @@ import type { Project, CreateProjectData, Task, ChatMessage, ChatResponse } from
 
 const BASE = '/api'
 
-export async function analyzeRepo(githubUrl: string): Promise<Project> {
-  const res = await fetch(`${BASE}/analyze`, {
+export async function importFromGithub(githubUrl: string): Promise<Project> {
+  const res = await fetch(`${BASE}/projects/from-github`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ github_url: githubUrl }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail ?? 'Analysis failed')
+    throw new Error(err.detail ?? 'Failed to import from GitHub')
   }
   return res.json()
 }

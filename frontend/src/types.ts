@@ -38,13 +38,31 @@ export interface CreateProjectData {
   documentation?: string
 }
 
+export interface ToolStep {
+  tool_name: string
+  tool_label: string
+  args: Record<string, unknown>
+  summary: string
+  detail: Record<string, unknown>
+  duration_ms: number
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  toolSteps?: ToolStep[]
+  agentName?: string
+  modelName?: string
+  inputTokens?: number
+  outputTokens?: number
 }
 
 export interface ChatResponse {
   assistant_message: string
   input_tokens: number
   output_tokens: number
+  project_created?: Project
+  tool_steps?: ToolStep[]
+  agent_name?: string
+  model_name?: string
 }

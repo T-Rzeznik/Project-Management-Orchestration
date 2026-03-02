@@ -41,6 +41,10 @@ class Project(BaseModel):
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
+class ImportGithubRequest(BaseModel):
+    github_url: str
+
+
 class CreateProjectRequest(BaseModel):
     name: str
     description: str = ""
@@ -59,8 +63,13 @@ class UpdateProjectRequest(BaseModel):
     tasks: Optional[List[Task]] = None
 
 
-class AnalyzeRequest(BaseModel):
-    github_url: str
+class ToolStep(BaseModel):
+    tool_name: str
+    tool_label: str
+    args: dict = {}
+    summary: str = ""
+    detail: dict = {}
+    duration_ms: int = 0
 
 
 class ChatMessage(BaseModel):
@@ -77,3 +86,7 @@ class ChatResponse(BaseModel):
     assistant_message: str
     input_tokens: int
     output_tokens: int
+    project_created: Optional[dict] = None
+    tool_steps: List[ToolStep] = []
+    agent_name: str = ""
+    model_name: str = ""

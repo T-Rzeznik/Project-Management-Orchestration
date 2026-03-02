@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import ProjectDashboard from './components/ProjectDashboard'
 import ProjectDetail from './components/ProjectDetail'
 import LogsView from './components/LogsView'
@@ -10,8 +10,13 @@ type Tab = 'projects' | 'logs'
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('projects')
   const [chatOpen, setChatOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const location = useLocation()
   const isDetail = location.pathname.startsWith('/projects/')
+
+  const handleProjectCreated = useCallback(() => {
+    setRefreshKey((k) => k + 1)
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -40,7 +45,7 @@ export default function App() {
       <Routes>
         <Route
           path="/"
-          element={activeTab === 'projects' ? <ProjectDashboard /> : <LogsView />}
+          element={activeTab === 'projects' ? <ProjectDashboard refreshKey={refreshKey} /> : <LogsView />}
         />
         <Route path="/projects/:id" element={<ProjectDetail />} />
       </Routes>
@@ -57,7 +62,11 @@ export default function App() {
         </button>
       )}
 
-      <ChatPanel isOpen={chatOpen} onToggle={() => setChatOpen(false)} />
+      <ChatPanel
+        isOpen={chatOpen}
+        onToggle={() => setChatOpen(false)}
+        onProjectCreated={handleProjectCreated}
+      />
     </div>
   )
 }

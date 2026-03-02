@@ -51,7 +51,14 @@
       "Bash(wc:*)",
       "Bash(curl:*)",
       "Bash(taskkill:*)",
-      "Bash(do taskkill:*)"
+      "Bash(do taskkill:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx playwright:*)",
+      "Bash(rm:*)",
+      "WebSearch",
+      "Bash(xargs grep:*)",
+      "Bash(ls:*)"
     ]
   }
 }

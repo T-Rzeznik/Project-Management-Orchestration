@@ -175,6 +175,186 @@ describe('ChatPanel', () => {
 })
 
 
+// --- Tool Steps rendering tests ---
+
+describe('ChatPanel tool steps', () => {
+  const mockOnToggle = vi.fn()
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('should render tool step cards when response has tool_steps', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        assistant_message: 'Analyzed it!',
+        input_tokens: 10,
+        output_tokens: 5,
+        tool_steps: [{
+          tool_name: 'read_github_repo',
+          tool_label: 'Read GitHub Repository',
+          args: { github_url: 'pallets/flask' },
+          summary: 'Fetched pallets/flask',
+          detail: { owner: 'pallets' },
+          duration_ms: 100,
+        }],
+      }),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Analyze flask')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(await screen.findByText('Read GitHub Repository')).toBeInTheDocument()
+    expect(screen.getByText('Fetched pallets/flask')).toBeInTheDocument()
+    expect(screen.getByText('Analyzed it!')).toBeInTheDocument()
+  })
+
+  it('should not render tool steps container when no steps', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        assistant_message: 'Just text',
+        input_tokens: 10,
+        output_tokens: 5,
+        tool_steps: [],
+      }),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Hello')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(await screen.findByText('Just text')).toBeInTheDocument()
+    expect(screen.queryByText('Read GitHub Repository')).not.toBeInTheDocument()
+  })
+
+  it('should render multiple tool steps in order', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        assistant_message: 'All done!',
+        input_tokens: 10,
+        output_tokens: 5,
+        tool_steps: [
+          {
+            tool_name: 'read_github_repo',
+            tool_label: 'Read GitHub Repository',
+            args: {},
+            summary: 'Fetched repo',
+            detail: {},
+            duration_ms: 50,
+          },
+          {
+            tool_name: 'create_project',
+            tool_label: 'Create Project',
+            args: {},
+            summary: 'Created project: Flask',
+            detail: {},
+            duration_ms: 30,
+          },
+        ],
+      }),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Analyze and create')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(await screen.findByText('Read GitHub Repository')).toBeInTheDocument()
+    expect(screen.getByText('Create Project')).toBeInTheDocument()
+  })
+})
+
+
+// --- Agent metadata display tests ---
+
+describe('ChatPanel metadata bar', () => {
+  const mockOnToggle = vi.fn()
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('should display agent name and model name below assistant message', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        assistant_message: 'Hello!',
+        input_tokens: 100,
+        output_tokens: 50,
+        agent_name: 'project_creator',
+        model_name: 'gemini-2.5-flash-lite',
+      }),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Hi')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(await screen.findByText('Hello!')).toBeInTheDocument()
+    expect(screen.getByText('project_creator')).toBeInTheDocument()
+    expect(screen.getByText(/gemini-2.5-flash-lite/)).toBeInTheDocument()
+  })
+
+  it('should display token counts below assistant message', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        assistant_message: 'Done!',
+        input_tokens: 200,
+        output_tokens: 75,
+        agent_name: 'project_creator',
+        model_name: 'gemini-2.5-flash-lite',
+      }),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Test')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(await screen.findByText('Done!')).toBeInTheDocument()
+    expect(screen.getByTestId('token-counts')).toHaveTextContent('200')
+    expect(screen.getByTestId('token-counts')).toHaveTextContent('75')
+  })
+
+  it('should not display metadata bar for user messages', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        assistant_message: 'Reply',
+        input_tokens: 10,
+        output_tokens: 5,
+        agent_name: 'project_creator',
+        model_name: 'gemini-2.5-flash-lite',
+      }),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Hello')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    await screen.findByText('Reply')
+    // There should be exactly one metadata bar (for the assistant message), not for user
+    const metadataBars = screen.getAllByTestId('message-metadata')
+    expect(metadataBars).toHaveLength(1)
+  })
+})
+
+
 // --- Phase 5: App integration tests ---
 
 describe('App chat integration', () => {

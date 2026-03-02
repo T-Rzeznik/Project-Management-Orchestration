@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 import { sendChatMessage } from '../api'
-import type { ChatMessage } from '../types'
+import type { ChatMessage, Project } from '../types'
+import ToolStepCard from './ToolStepCard'
 
 interface ChatPanelProps {
   isOpen: boolean
   onToggle: () => void
+  onProjectCreated?: (project: Project) => void
 }
 
-export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
+export default function ChatPanel({ isOpen, onToggle, onProjectCreated }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -37,8 +39,19 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
       const res = await sendChatMessage(updated)
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: res.assistant_message },
+        {
+          role: 'assistant',
+          content: res.assistant_message,
+          toolSteps: res.tool_steps,
+          agentName: res.agent_name,
+          modelName: res.model_name,
+          inputTokens: res.input_tokens,
+          outputTokens: res.output_tokens,
+        },
       ])
+      if (res.project_created && onProjectCreated) {
+        onProjectCreated(res.project_created)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -70,15 +83,32 @@ export default function ChatPanel({ isOpen, onToggle }: ChatPanelProps) {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`px-3 py-2 rounded-lg text-sm whitespace-pre-wrap ${
-              msg.role === 'user'
-                ? 'bg-indigo-600 text-white ml-8'
-                : 'bg-gray-800 text-gray-100 mr-8'
-            }`}
-          >
-            {msg.content}
+          <div key={i}>
+            {msg.role === 'assistant' && msg.toolSteps && msg.toolSteps.length > 0 && (
+              <div className="mr-8 mb-1">
+                {msg.toolSteps.map((step, j) => (
+                  <ToolStepCard key={j} step={step} />
+                ))}
+              </div>
+            )}
+            <div
+              className={`px-3 py-2 rounded-lg text-sm whitespace-pre-wrap ${
+                msg.role === 'user'
+                  ? 'bg-indigo-600 text-white ml-8'
+                  : 'bg-gray-800 text-gray-100 mr-8'
+              }`}
+            >
+              {msg.content}
+            </div>
+            {msg.role === 'assistant' && (msg.agentName || msg.inputTokens !== undefined) && (
+              <div data-testid="message-metadata" className="flex items-center gap-2 mt-1 mr-8 text-[11px] text-gray-500">
+                {msg.agentName && <span>{msg.agentName}</span>}
+                {msg.modelName && <span className="text-gray-600">&middot; {msg.modelName}</span>}
+                {msg.inputTokens !== undefined && (
+                  <span data-testid="token-counts" className="ml-auto">{msg.inputTokens}&uarr; {msg.outputTokens}&darr;</span>
+                )}
+              </div>
+            )}
           </div>
         ))}
         {loading && (
