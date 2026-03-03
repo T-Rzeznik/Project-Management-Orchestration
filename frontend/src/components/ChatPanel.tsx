@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { sendChatMessage } from '../api'
-import type { ChatMessage, Project } from '../types'
+import ReactMarkdown from 'react-markdown'
+import { sendChatMessage, approveToolCall, denyToolCall } from '../api'
+import type { ChatMessage, PendingTool, ToolStep, Project } from '../types'
 import ToolStepCard from './ToolStepCard'
+import ToolApprovalCard from './ToolApprovalCard'
 
 interface ChatPanelProps {
   isOpen: boolean
@@ -14,13 +16,19 @@ export default function ChatPanel({ isOpen, onToggle, onProjectCreated }: ChatPa
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Step-by-step state
+  const [pendingTools, setPendingTools] = useState<PendingTool[]>([])
+  const [threadId, setThreadId] = useState<string | null>(null)
+  const [approvedSteps, setApprovedSteps] = useState<ToolStep[]>([])
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === 'function') {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages, loading])
+  }, [messages, loading, pendingTools])
 
   if (!isOpen) return null
 
@@ -34,27 +42,119 @@ export default function ChatPanel({ isOpen, onToggle, onProjectCreated }: ChatPa
     setInput('')
     setError(null)
     setLoading(true)
+    setApprovedSteps([])
+    setPendingTools([])
+    setThreadId(null)
 
     try {
       const res = await sendChatMessage(updated)
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: res.assistant_message,
-          toolSteps: res.tool_steps,
-          agentName: res.agent_name,
-          modelName: res.model_name,
-          inputTokens: res.input_tokens,
-          outputTokens: res.output_tokens,
-        },
-      ])
-      if (res.project_created && onProjectCreated) {
-        onProjectCreated(res.project_created)
+      setThreadId(res.thread_id)
+
+      if (res.status === 'tool_pending') {
+        setPendingTools(res.pending_tools)
+        setApprovedSteps(res.completed_steps)
+        setLoading(false)
+      } else {
+        // Done — no tools needed
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: res.assistant_message,
+            toolSteps: res.completed_steps,
+            agentName: res.agent_name,
+            modelName: res.model_name,
+            inputTokens: res.input_tokens,
+            outputTokens: res.output_tokens,
+          },
+        ])
+        setPendingTools([])
+        setLoading(false)
+        if (res.project_created && onProjectCreated) {
+          onProjectCreated(res.project_created)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApprove = async () => {
+    if (!threadId) return
+    setLoading(true)
+    setPendingTools([])
+
+    try {
+      const res = await approveToolCall(threadId)
+
+      if (res.status === 'tool_pending') {
+        setApprovedSteps(res.completed_steps)
+        setPendingTools(res.pending_tools)
+        setLoading(false)
+      } else {
+        // Done
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: res.assistant_message,
+            toolSteps: res.completed_steps,
+            agentName: res.agent_name,
+            modelName: res.model_name,
+            inputTokens: res.input_tokens,
+            outputTokens: res.output_tokens,
+          },
+        ])
+        setPendingTools([])
+        setApprovedSteps([])
+        setThreadId(null)
+        setLoading(false)
+        if (res.project_created && onProjectCreated) {
+          onProjectCreated(res.project_created)
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Approve failed')
+      setLoading(false)
+    }
+  }
+
+  const handleDeny = async () => {
+    if (!threadId) return
+    setLoading(true)
+    setPendingTools([])
+
+    try {
+      const res = await denyToolCall(threadId)
+
+      if (res.status === 'tool_pending') {
+        setApprovedSteps(res.completed_steps)
+        setPendingTools(res.pending_tools)
+        setLoading(false)
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: res.assistant_message,
+            toolSteps: res.completed_steps,
+            agentName: res.agent_name,
+            modelName: res.model_name,
+            inputTokens: res.input_tokens,
+            outputTokens: res.output_tokens,
+          },
+        ])
+        setPendingTools([])
+        setApprovedSteps([])
+        setThreadId(null)
+        setLoading(false)
+        if (res.project_created && onProjectCreated) {
+          onProjectCreated(res.project_created)
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Deny failed')
       setLoading(false)
     }
   }
@@ -92,13 +192,15 @@ export default function ChatPanel({ isOpen, onToggle, onProjectCreated }: ChatPa
               </div>
             )}
             <div
-              className={`px-3 py-2 rounded-lg text-sm whitespace-pre-wrap ${
+              className={`px-3 py-2 rounded-lg text-sm ${
                 msg.role === 'user'
-                  ? 'bg-indigo-600 text-white ml-8'
-                  : 'bg-gray-800 text-gray-100 mr-8'
+                  ? 'bg-indigo-600 text-white ml-8 whitespace-pre-wrap'
+                  : 'bg-gray-800 text-gray-100 mr-8 prose prose-invert prose-sm max-w-none'
               }`}
             >
-              {msg.content}
+              {msg.role === 'assistant'
+                ? <ReactMarkdown>{msg.content}</ReactMarkdown>
+                : msg.content}
             </div>
             {msg.role === 'assistant' && (msg.agentName || msg.inputTokens !== undefined) && (
               <div data-testid="message-metadata" className="flex items-center gap-2 mt-1 mr-8 text-[11px] text-gray-500">
@@ -111,6 +213,25 @@ export default function ChatPanel({ isOpen, onToggle, onProjectCreated }: ChatPa
             )}
           </div>
         ))}
+
+        {/* In-progress tool steps (already approved) */}
+        {approvedSteps.length > 0 && (
+          <div className="mr-8 mb-1">
+            {approvedSteps.map((step, j) => (
+              <ToolStepCard key={j} step={step} />
+            ))}
+          </div>
+        )}
+
+        {/* Pending tool approval */}
+        {pendingTools.length > 0 && (
+          <ToolApprovalCard
+            tools={pendingTools}
+            onApprove={handleApprove}
+            onDeny={handleDeny}
+          />
+        )}
+
         {loading && (
           <div className="bg-gray-800 text-gray-400 px-3 py-2 rounded-lg text-sm mr-8">
             Thinking...
@@ -130,11 +251,12 @@ export default function ChatPanel({ isOpen, onToggle, onProjectCreated }: ChatPa
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
-          className="flex-1 bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-indigo-500"
+          disabled={pendingTools.length > 0}
+          className="flex-1 bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-indigo-500 disabled:opacity-40"
         />
         <button
           onClick={handleSend}
-          disabled={!input.trim() || loading}
+          disabled={!input.trim() || loading || pendingTools.length > 0}
           aria-label="Send"
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
         >

@@ -1,4 +1,4 @@
-import type { Project, CreateProjectData, Task, ChatMessage, ChatResponse } from './types'
+import type { Project, CreateProjectData, Task, ChatMessage, ChatStepResponse } from './types'
 
 const BASE = '/api'
 
@@ -58,7 +58,7 @@ export async function deleteProject(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete project')
 }
 
-export async function sendChatMessage(messages: ChatMessage[]): Promise<ChatResponse> {
+export async function sendChatMessage(messages: ChatMessage[]): Promise<ChatStepResponse> {
   const res = await fetch(`${BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -67,6 +67,32 @@ export async function sendChatMessage(messages: ChatMessage[]): Promise<ChatResp
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(err.detail ?? 'Chat request failed')
+  }
+  return res.json()
+}
+
+export async function approveToolCall(threadId: string): Promise<ChatStepResponse> {
+  const res = await fetch(`${BASE}/chat/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ thread_id: threadId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail ?? 'Approve request failed')
+  }
+  return res.json()
+}
+
+export async function denyToolCall(threadId: string, reason = 'Denied by user'): Promise<ChatStepResponse> {
+  const res = await fetch(`${BASE}/chat/deny`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ thread_id: threadId, reason }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail ?? 'Deny request failed')
   }
   return res.json()
 }

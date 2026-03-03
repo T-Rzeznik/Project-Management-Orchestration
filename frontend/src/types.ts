@@ -66,3 +66,23 @@ export interface ChatResponse {
   agent_name?: string
   model_name?: string
 }
+
+export interface PendingTool {
+  tool_name: string
+  tool_label: string
+  args: Record<string, unknown>
+  tool_call_id: string
+}
+
+export interface ChatStepResponse {
+  status: 'tool_pending' | 'done'
+  thread_id: string
+  pending_tools: PendingTool[]
+  completed_steps: ToolStep[]
+  assistant_message: string
+  input_tokens: number
+  output_tokens: number
+  project_created?: Project
+  agent_name?: string
+  model_name?: string
+}

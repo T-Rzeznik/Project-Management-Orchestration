@@ -38,7 +38,7 @@ class TestChatRequest:
             messages=[ChatMessage(role="user", content="Hello")]
         )
         assert len(req.messages) == 1
-        assert req.model == "gemini-2.5-flash-lite"
+        assert req.model == "gemini-2.5-flash"
 
     def test_empty_messages_rejected(self):
         with pytest.raises(ValidationError):
@@ -109,10 +109,10 @@ class TestChatResponse:
             input_tokens=10,
             output_tokens=5,
             agent_name="project_creator",
-            model_name="gemini-2.5-flash-lite",
+            model_name="gemini-2.5-flash",
         )
         assert resp.agent_name == "project_creator"
-        assert resp.model_name == "gemini-2.5-flash-lite"
+        assert resp.model_name == "gemini-2.5-flash"
 
     def test_response_defaults_agent_name_empty(self):
         resp = ChatResponse(
@@ -169,12 +169,24 @@ def _make_langgraph_result(text: str, tool_calls=None, input_tokens=15, output_t
     return {"messages": messages}
 
 
+def _mock_agent_done(mock_agent):
+    """Configure mock agent's get_state to indicate graph completed (not interrupted)."""
+    def _get_state_side_effect(config):
+        state = MagicMock()
+        state.next = ()
+        invoke_result = mock_agent.invoke.return_value
+        state.values = {"messages": invoke_result.get("messages", []) if isinstance(invoke_result, dict) else []}
+        return state
+    mock_agent.get_state.side_effect = _get_state_side_effect
+
+
 class TestChatEndpoint:
     def test_valid_chat_returns_200(self):
         result = _make_langgraph_result("Hello from AI!")
         with patch("api.server._get_agent") as mock_get_agent:
             mock_agent = MagicMock()
             mock_agent.invoke.return_value = result
+            _mock_agent_done(mock_agent)
             mock_get_agent.return_value = mock_agent
 
             res = client.post("/api/chat", json={
@@ -195,6 +207,7 @@ class TestChatEndpoint:
         with patch("api.server._get_agent") as mock_get_agent:
             mock_agent = MagicMock()
             mock_agent.invoke.return_value = result
+            _mock_agent_done(mock_agent)
             mock_get_agent.return_value = mock_agent
 
             res = client.post("/api/chat", json={
@@ -202,7 +215,7 @@ class TestChatEndpoint:
             })
         data = res.json()
         assert data["agent_name"] == "project_creator"
-        assert data["model_name"] == "gemini-2.5-flash-lite"
+        assert data["model_name"] == "gemini-2.5-flash"
 
     def test_provider_exception_returns_500(self):
         with patch("api.server._get_agent") as mock_get_agent:

@@ -9,8 +9,9 @@ from api import storage
 
 @pytest.fixture(autouse=True)
 def clean_storage(tmp_path, monkeypatch):
-    """Point storage at a temp file so tests don't touch real data."""
-    monkeypatch.setattr(storage, "STORAGE_PATH", tmp_path / "projects.json")
+    """Point storage at a temp SQLite DB so tests don't touch real data."""
+    monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+    storage._init_db()
 
 
 client = TestClient(app)
@@ -174,3 +175,119 @@ def test_update_task_status_via_put():
     assert res2.status_code == 200
     assert res2.json()["tasks"][0]["status"] == "done"
     assert res2.json()["tasks"][1]["status"] == "in-progress"
+
+
+# --- Step-by-step agent models ---
+
+
+class TestPendingToolModel:
+    def test_pending_tool_fields(self):
+        """PendingTool should have tool_name, tool_label, args, tool_call_id."""
+        from api.models import PendingTool
+
+        pt = PendingTool(
+            tool_name="read_github_repo",
+            tool_label="Read GitHub Repository",
+            args={"github_url": "pallets/flask"},
+            tool_call_id="call_123",
+        )
+        assert pt.tool_name == "read_github_repo"
+        assert pt.tool_label == "Read GitHub Repository"
+        assert pt.args == {"github_url": "pallets/flask"}
+        assert pt.tool_call_id == "call_123"
+
+    def test_pending_tool_default_args(self):
+        """PendingTool args should default to empty dict."""
+        from api.models import PendingTool
+
+        pt = PendingTool(
+            tool_name="create_project",
+            tool_label="Create Project",
+            tool_call_id="call_456",
+        )
+        assert pt.args == {}
+
+
+class TestChatStepResponseModel:
+    def test_tool_pending_response(self):
+        """ChatStepResponse with status=tool_pending should carry pending_tools and thread_id."""
+        from api.models import ChatStepResponse, PendingTool
+
+        resp = ChatStepResponse(
+            status="tool_pending",
+            thread_id="thread-abc",
+            pending_tools=[
+                PendingTool(
+                    tool_name="read_github_repo",
+                    tool_label="Read GitHub Repository",
+                    args={"github_url": "pallets/flask"},
+                    tool_call_id="call_1",
+                ),
+            ],
+            assistant_message="",
+            input_tokens=0,
+            output_tokens=0,
+        )
+        assert resp.status == "tool_pending"
+        assert resp.thread_id == "thread-abc"
+        assert len(resp.pending_tools) == 1
+        assert resp.pending_tools[0].tool_name == "read_github_repo"
+
+    def test_done_response(self):
+        """ChatStepResponse with status=done should carry completed_steps and assistant_message."""
+        from api.models import ChatStepResponse, ToolStep
+
+        resp = ChatStepResponse(
+            status="done",
+            thread_id="thread-abc",
+            assistant_message="Project created!",
+            input_tokens=100,
+            output_tokens=50,
+            completed_steps=[
+                ToolStep(tool_name="create_project", tool_label="Create Project"),
+            ],
+        )
+        assert resp.status == "done"
+        assert resp.assistant_message == "Project created!"
+        assert len(resp.completed_steps) == 1
+
+    def test_defaults(self):
+        """ChatStepResponse defaults should be sensible."""
+        from api.models import ChatStepResponse
+
+        resp = ChatStepResponse(
+            status="done",
+            thread_id="t1",
+            assistant_message="Hi",
+            input_tokens=0,
+            output_tokens=0,
+        )
+        assert resp.pending_tools == []
+        assert resp.completed_steps == []
+        assert resp.project_created is None
+        assert resp.agent_name == ""
+        assert resp.model_name == ""
+
+
+class TestApproveAndDenyModels:
+    def test_approve_request(self):
+        """ApproveRequest should accept thread_id."""
+        from api.models import ApproveRequest
+
+        req = ApproveRequest(thread_id="thread-abc")
+        assert req.thread_id == "thread-abc"
+
+    def test_deny_request_with_default_reason(self):
+        """DenyRequest should have a default reason."""
+        from api.models import DenyRequest
+
+        req = DenyRequest(thread_id="thread-abc")
+        assert req.thread_id == "thread-abc"
+        assert req.reason == "Denied by user"
+
+    def test_deny_request_custom_reason(self):
+        """DenyRequest should accept a custom reason."""
+        from api.models import DenyRequest
+
+        req = DenyRequest(thread_id="thread-abc", reason="Too risky")
+        assert req.reason == "Too risky"

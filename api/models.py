@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -68,7 +68,7 @@ class ToolStep(BaseModel):
     tool_label: str
     args: dict = {}
     summary: str = ""
-    detail: dict = {}
+    detail: Union[dict, str] = {}
     duration_ms: int = 0
 
 
@@ -79,7 +79,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[ChatMessage] = Field(min_length=1)
-    model: str = "gemini-2.5-flash-lite"
+    model: str = "gemini-2.5-flash"
 
 
 class ChatResponse(BaseModel):
@@ -90,3 +90,32 @@ class ChatResponse(BaseModel):
     tool_steps: List[ToolStep] = []
     agent_name: str = ""
     model_name: str = ""
+
+
+class PendingTool(BaseModel):
+    tool_name: str
+    tool_label: str
+    args: dict = {}
+    tool_call_id: str
+
+
+class ChatStepResponse(BaseModel):
+    status: Literal["tool_pending", "done"]
+    thread_id: str
+    pending_tools: List[PendingTool] = []
+    completed_steps: List[ToolStep] = []
+    assistant_message: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    project_created: Optional[dict] = None
+    agent_name: str = ""
+    model_name: str = ""
+
+
+class ApproveRequest(BaseModel):
+    thread_id: str
+
+
+class DenyRequest(BaseModel):
+    thread_id: str
+    reason: str = "Denied by user"

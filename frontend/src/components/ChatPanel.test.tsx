@@ -5,6 +5,20 @@ import { MemoryRouter } from 'react-router-dom'
 import ChatPanel from './ChatPanel'
 import App from '../App'
 
+/** Helper: build a mock ChatStepResponse with status=done */
+function doneResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    status: 'done',
+    thread_id: 'thread-test',
+    pending_tools: [],
+    completed_steps: [],
+    assistant_message: '',
+    input_tokens: 10,
+    output_tokens: 5,
+    ...overrides,
+  }
+}
+
 describe('ChatPanel', () => {
   const mockOnToggle = vi.fn()
 
@@ -44,11 +58,7 @@ describe('ChatPanel', () => {
   it('should display user message after sending', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
-        assistant_message: 'Hi there!',
-        input_tokens: 10,
-        output_tokens: 5,
-      }),
+      json: () => Promise.resolve(doneResponse({ assistant_message: 'Hi there!' })),
     })
 
     const user = userEvent.setup()
@@ -63,11 +73,7 @@ describe('ChatPanel', () => {
   it('should display assistant response after sending', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
-        assistant_message: 'Hi there!',
-        input_tokens: 10,
-        output_tokens: 5,
-      }),
+      json: () => Promise.resolve(doneResponse({ assistant_message: 'Hi there!' })),
     })
 
     const user = userEvent.setup()
@@ -82,11 +88,7 @@ describe('ChatPanel', () => {
   it('should clear input after sending', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
-        assistant_message: 'Response',
-        input_tokens: 10,
-        output_tokens: 5,
-      }),
+      json: () => Promise.resolve(doneResponse({ assistant_message: 'Response' })),
     })
 
     const user = userEvent.setup()
@@ -118,11 +120,7 @@ describe('ChatPanel', () => {
     // Resolve to avoid dangling promise
     resolvePromise!({
       ok: true,
-      json: () => Promise.resolve({
-        assistant_message: 'Done',
-        input_tokens: 10,
-        output_tokens: 5,
-      }),
+      json: () => Promise.resolve(doneResponse({ assistant_message: 'Done' })),
     })
 
     await waitFor(() => {
@@ -156,11 +154,7 @@ describe('ChatPanel', () => {
   it('should submit on Enter key press', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
-        assistant_message: 'Response',
-        input_tokens: 10,
-        output_tokens: 5,
-      }),
+      json: () => Promise.resolve(doneResponse({ assistant_message: 'Response' })),
     })
 
     const user = userEvent.setup()
@@ -184,14 +178,12 @@ describe('ChatPanel tool steps', () => {
     vi.restoreAllMocks()
   })
 
-  it('should render tool step cards when response has tool_steps', async () => {
+  it('should render tool step cards when response has completed_steps', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
+      json: () => Promise.resolve(doneResponse({
         assistant_message: 'Analyzed it!',
-        input_tokens: 10,
-        output_tokens: 5,
-        tool_steps: [{
+        completed_steps: [{
           tool_name: 'read_github_repo',
           tool_label: 'Read GitHub Repository',
           args: { github_url: 'pallets/flask' },
@@ -199,7 +191,7 @@ describe('ChatPanel tool steps', () => {
           detail: { owner: 'pallets' },
           duration_ms: 100,
         }],
-      }),
+      })),
     })
 
     const user = userEvent.setup()
@@ -216,12 +208,7 @@ describe('ChatPanel tool steps', () => {
   it('should not render tool steps container when no steps', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
-        assistant_message: 'Just text',
-        input_tokens: 10,
-        output_tokens: 5,
-        tool_steps: [],
-      }),
+      json: () => Promise.resolve(doneResponse({ assistant_message: 'Just text' })),
     })
 
     const user = userEvent.setup()
@@ -237,11 +224,9 @@ describe('ChatPanel tool steps', () => {
   it('should render multiple tool steps in order', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
+      json: () => Promise.resolve(doneResponse({
         assistant_message: 'All done!',
-        input_tokens: 10,
-        output_tokens: 5,
-        tool_steps: [
+        completed_steps: [
           {
             tool_name: 'read_github_repo',
             tool_label: 'Read GitHub Repository',
@@ -259,7 +244,7 @@ describe('ChatPanel tool steps', () => {
             duration_ms: 30,
           },
         ],
-      }),
+      })),
     })
 
     const user = userEvent.setup()
@@ -270,6 +255,76 @@ describe('ChatPanel tool steps', () => {
 
     expect(await screen.findByText('Read GitHub Repository')).toBeInTheDocument()
     expect(screen.getByText('Create Project')).toBeInTheDocument()
+  })
+})
+
+
+// --- Markdown rendering tests ---
+
+describe('ChatPanel markdown rendering', () => {
+  const mockOnToggle = vi.fn()
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('should render bold markdown as <strong> in assistant messages', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(doneResponse({
+        assistant_message: 'This is **bold text** here.',
+      })),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Hello')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    await screen.findByText('bold text')
+    // The bold text should be wrapped in a <strong> tag
+    const strong = document.querySelector('strong')
+    expect(strong).not.toBeNull()
+    expect(strong!.textContent).toBe('bold text')
+  })
+
+  it('should render code blocks in assistant messages', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(doneResponse({
+        assistant_message: 'Here is `inline code` for you.',
+      })),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Hello')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    await screen.findByText('inline code')
+    const code = document.querySelector('code')
+    expect(code).not.toBeNull()
+    expect(code!.textContent).toBe('inline code')
+  })
+
+  it('should NOT render markdown in user messages', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(doneResponse({
+        assistant_message: 'Got it.',
+      })),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), '**not bold**')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    // User message should show raw markdown, not rendered
+    expect(await screen.findByText('**not bold**')).toBeInTheDocument()
   })
 })
 
@@ -286,13 +341,13 @@ describe('ChatPanel metadata bar', () => {
   it('should display agent name and model name below assistant message', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
+      json: () => Promise.resolve(doneResponse({
         assistant_message: 'Hello!',
         input_tokens: 100,
         output_tokens: 50,
         agent_name: 'project_creator',
-        model_name: 'gemini-2.5-flash-lite',
-      }),
+        model_name: 'gemini-2.5-flash',
+      })),
     })
 
     const user = userEvent.setup()
@@ -303,19 +358,19 @@ describe('ChatPanel metadata bar', () => {
 
     expect(await screen.findByText('Hello!')).toBeInTheDocument()
     expect(screen.getByText('project_creator')).toBeInTheDocument()
-    expect(screen.getByText(/gemini-2.5-flash-lite/)).toBeInTheDocument()
+    expect(screen.getByText(/gemini-2.5-flash/)).toBeInTheDocument()
   })
 
   it('should display token counts below assistant message', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
+      json: () => Promise.resolve(doneResponse({
         assistant_message: 'Done!',
         input_tokens: 200,
         output_tokens: 75,
         agent_name: 'project_creator',
-        model_name: 'gemini-2.5-flash-lite',
-      }),
+        model_name: 'gemini-2.5-flash',
+      })),
     })
 
     const user = userEvent.setup()
@@ -332,13 +387,11 @@ describe('ChatPanel metadata bar', () => {
   it('should not display metadata bar for user messages', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
+      json: () => Promise.resolve(doneResponse({
         assistant_message: 'Reply',
-        input_tokens: 10,
-        output_tokens: 5,
         agent_name: 'project_creator',
-        model_name: 'gemini-2.5-flash-lite',
-      }),
+        model_name: 'gemini-2.5-flash',
+      })),
     })
 
     const user = userEvent.setup()
@@ -351,6 +404,241 @@ describe('ChatPanel metadata bar', () => {
     // There should be exactly one metadata bar (for the assistant message), not for user
     const metadataBars = screen.getAllByTestId('message-metadata')
     expect(metadataBars).toHaveLength(1)
+  })
+})
+
+
+// --- Step-by-step approval flow tests ---
+
+describe('ChatPanel step-by-step approval', () => {
+  const mockOnToggle = vi.fn()
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('should show ToolApprovalCard when agent returns tool_pending', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        status: 'tool_pending',
+        thread_id: 'thread-abc',
+        pending_tools: [{
+          tool_name: 'read_github_repo',
+          tool_label: 'Read GitHub Repository',
+          args: { github_url: 'pallets/flask' },
+          tool_call_id: 'call_1',
+        }],
+        completed_steps: [],
+        assistant_message: '',
+        input_tokens: 0,
+        output_tokens: 0,
+      }),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Analyze flask')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(await screen.findByText('Tool Approval Required')).toBeInTheDocument()
+    expect(screen.getByText('Read GitHub Repository')).toBeInTheDocument()
+    expect(screen.getByTestId('approve-btn')).toBeInTheDocument()
+    expect(screen.getByTestId('deny-btn')).toBeInTheDocument()
+  })
+
+  it('should disable input while tools are pending', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        status: 'tool_pending',
+        thread_id: 'thread-abc',
+        pending_tools: [{
+          tool_name: 'read_github_repo',
+          tool_label: 'Read GitHub Repository',
+          args: {},
+          tool_call_id: 'call_1',
+        }],
+        completed_steps: [],
+        assistant_message: '',
+        input_tokens: 0,
+        output_tokens: 0,
+      }),
+    })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Analyze flask')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    await screen.findByText('Tool Approval Required')
+    expect(screen.getByPlaceholderText(/type a message/i)).toBeDisabled()
+  })
+
+  it('should call approve API and show final response on approve', async () => {
+    // First call: POST /api/chat → tool_pending
+    // Second call: POST /api/chat/approve → done
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          status: 'tool_pending',
+          thread_id: 'thread-abc',
+          pending_tools: [{
+            tool_name: 'read_github_repo',
+            tool_label: 'Read GitHub Repository',
+            args: { github_url: 'pallets/flask' },
+            tool_call_id: 'call_1',
+          }],
+          completed_steps: [],
+          assistant_message: '',
+          input_tokens: 0,
+          output_tokens: 0,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(doneResponse({
+          assistant_message: 'Analyzed Flask successfully!',
+          completed_steps: [{
+            tool_name: 'read_github_repo',
+            tool_label: 'Read GitHub Repository',
+            args: { github_url: 'pallets/flask' },
+            summary: 'Fetched pallets/flask',
+            detail: {},
+            duration_ms: 100,
+          }],
+        })),
+      })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Analyze flask')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    // Wait for approval card
+    await screen.findByText('Tool Approval Required')
+    // Click approve
+    await user.click(screen.getByTestId('approve-btn'))
+
+    // Should show final response
+    expect(await screen.findByText('Analyzed Flask successfully!')).toBeInTheDocument()
+  })
+
+  it('should call deny API and show adapted response on deny', async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          status: 'tool_pending',
+          thread_id: 'thread-abc',
+          pending_tools: [{
+            tool_name: 'read_github_repo',
+            tool_label: 'Read GitHub Repository',
+            args: {},
+            tool_call_id: 'call_1',
+          }],
+          completed_steps: [],
+          assistant_message: '',
+          input_tokens: 0,
+          output_tokens: 0,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(doneResponse({
+          assistant_message: 'Tool was denied. How else can I help?',
+        })),
+      })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Analyze flask')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    await screen.findByText('Tool Approval Required')
+    await user.click(screen.getByTestId('deny-btn'))
+
+    expect(await screen.findByText('Tool was denied. How else can I help?')).toBeInTheDocument()
+  })
+
+  it('should handle multi-step approval (approve, then another tool_pending, then approve again)', async () => {
+    global.fetch = vi.fn()
+      // 1: POST /api/chat → tool_pending (read_github_repo)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          status: 'tool_pending',
+          thread_id: 'thread-abc',
+          pending_tools: [{
+            tool_name: 'read_github_repo',
+            tool_label: 'Read GitHub Repository',
+            args: {},
+            tool_call_id: 'call_1',
+          }],
+          completed_steps: [],
+          assistant_message: '',
+          input_tokens: 0,
+          output_tokens: 0,
+        }),
+      })
+      // 2: POST /api/chat/approve → tool_pending (create_project)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          status: 'tool_pending',
+          thread_id: 'thread-abc',
+          pending_tools: [{
+            tool_name: 'create_project',
+            tool_label: 'Create Project',
+            args: { name: 'Flask' },
+            tool_call_id: 'call_2',
+          }],
+          completed_steps: [{
+            tool_name: 'read_github_repo',
+            tool_label: 'Read GitHub Repository',
+            args: {},
+            summary: 'Fetched repo',
+            detail: {},
+            duration_ms: 50,
+          }],
+          assistant_message: '',
+          input_tokens: 5,
+          output_tokens: 3,
+        }),
+      })
+      // 3: POST /api/chat/approve → done
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(doneResponse({
+          assistant_message: 'Project created!',
+          completed_steps: [
+            { tool_name: 'read_github_repo', tool_label: 'Read GitHub Repository', args: {}, summary: 'Fetched repo', detail: {}, duration_ms: 50 },
+            { tool_name: 'create_project', tool_label: 'Create Project', args: { name: 'Flask' }, summary: 'Created Flask', detail: {}, duration_ms: 30 },
+          ],
+        })),
+      })
+
+    const user = userEvent.setup()
+    render(<ChatPanel isOpen={true} onToggle={mockOnToggle} />)
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), 'Analyze flask')
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    // Step 1: read_github_repo pending
+    expect(await screen.findByText('Read GitHub Repository')).toBeInTheDocument()
+    await user.click(screen.getByTestId('approve-btn'))
+
+    // Step 2: create_project pending (Read GitHub Repository now completed)
+    expect(await screen.findByText('Create Project')).toBeInTheDocument()
+    await user.click(screen.getByTestId('approve-btn'))
+
+    // Final: done
+    expect(await screen.findByText('Project created!')).toBeInTheDocument()
   })
 })
 
