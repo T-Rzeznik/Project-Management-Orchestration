@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from tools.langchain_tools import read_github_repo, create_project
+from tools.langchain_tools import read_github_repo, create_project, read_repo_file
 
 
 class TestReadGithubRepo:
@@ -42,7 +42,8 @@ class TestCreateProject:
     @pytest.fixture(autouse=True)
     def clean_storage(self, tmp_path, monkeypatch):
         from api import storage
-        monkeypatch.setattr(storage, "STORAGE_PATH", tmp_path / "projects.json")
+        monkeypatch.setattr(storage, "DB_PATH", tmp_path / "test.db")
+        storage._init_db()
 
     def test_creates_project_with_name(self):
         result = create_project.invoke({"name": "My Project"})
@@ -90,3 +91,39 @@ class TestCreateProject:
 
     def test_has_correct_name(self):
         assert create_project.name == "create_project"
+
+
+class TestReadRepoFile:
+    def test_returns_file_content(self):
+        with patch("tools.langchain_tools.fetch_file_content", return_value="print('hello')"):
+            result = read_repo_file.invoke({
+                "owner": "pallets",
+                "repo": "flask",
+                "path": "src/flask/app.py",
+            })
+        assert result == "print('hello')"
+
+    def test_passes_args_to_fetch(self):
+        with patch("tools.langchain_tools.fetch_file_content", return_value="content") as mock_fetch:
+            read_repo_file.invoke({
+                "owner": "myorg",
+                "repo": "myrepo",
+                "path": "README.md",
+            })
+        mock_fetch.assert_called_once_with("myorg", "myrepo", "README.md")
+
+    def test_returns_empty_on_missing_file(self):
+        with patch("tools.langchain_tools.fetch_file_content", return_value=""):
+            result = read_repo_file.invoke({
+                "owner": "pallets",
+                "repo": "flask",
+                "path": "nonexistent.py",
+            })
+        assert result == ""
+
+    def test_is_langchain_tool(self):
+        from langchain_core.tools import BaseTool
+        assert isinstance(read_repo_file, BaseTool)
+
+    def test_has_correct_name(self):
+        assert read_repo_file.name == "read_repo_file"

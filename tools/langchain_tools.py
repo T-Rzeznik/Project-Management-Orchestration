@@ -9,7 +9,7 @@ from typing import Optional
 from langchain_core.tools import tool
 
 from api import storage
-from tools.github_tool import fetch_repo_data
+from tools.github_tool import fetch_file_content, fetch_repo_data
 
 
 @tool
@@ -21,6 +21,18 @@ def read_github_repo(github_url: str) -> dict:
         github_url: GitHub URL or owner/repo string (e.g. 'pallets/flask')
     """
     return fetch_repo_data(github_url)
+
+
+@tool
+def read_repo_file(owner: str, repo: str, path: str) -> str:
+    """Read a single file from a public GitHub repository.
+
+    Args:
+        owner: Repository owner (e.g. 'pallets')
+        repo: Repository name (e.g. 'flask')
+        path: File path within the repo (e.g. 'src/flask/app.py')
+    """
+    return fetch_file_content(owner, repo, path)
 
 
 @tool

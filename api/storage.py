@@ -1,56 +1,60 @@
-"""Simple JSON file persistence for projects."""
+"""SQLite-backed project persistence."""
 
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
-STORAGE_PATH = Path(".projects.json")
+DB_PATH = Path(".projects.db")
 
 
-def _load() -> list[dict]:
-    if not STORAGE_PATH.exists():
-        return []
-    try:
-        return json.loads(STORAGE_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
+def _connect() -> sqlite3.Connection:
+    return sqlite3.connect(str(DB_PATH))
 
 
-def _save(projects: list[dict]) -> None:
-    STORAGE_PATH.write_text(
-        json.dumps(projects, indent=2, default=str),
-        encoding="utf-8",
-    )
+def _init_db() -> None:
+    """Create the projects table if it doesn't exist."""
+    with _connect() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS projects "
+            "(id TEXT PRIMARY KEY, data TEXT NOT NULL)"
+        )
 
 
 def list_projects() -> list[dict]:
-    return _load()
+    _init_db()
+    with _connect() as conn:
+        rows = conn.execute("SELECT data FROM projects").fetchall()
+    return [json.loads(row[0]) for row in rows]
 
 
 def get_project(project_id: str) -> dict | None:
-    for p in _load():
-        if p.get("id") == project_id:
-            return p
-    return None
+    _init_db()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT data FROM projects WHERE id = ?", (project_id,)
+        ).fetchone()
+    if row is None:
+        return None
+    return json.loads(row[0])
 
 
 def save_project(project: dict) -> dict:
-    projects = _load()
-    for i, p in enumerate(projects):
-        if p.get("id") == project.get("id"):
-            projects[i] = project
-            _save(projects)
-            return project
-    projects.append(project)
-    _save(projects)
+    _init_db()
+    data = json.dumps(project, default=str)
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO projects (id, data) VALUES (?, ?)",
+            (project["id"], data),
+        )
     return project
 
 
 def delete_project(project_id: str) -> bool:
-    projects = _load()
-    new_projects = [p for p in projects if p.get("id") != project_id]
-    if len(new_projects) == len(projects):
-        return False
-    _save(new_projects)
-    return True
+    _init_db()
+    with _connect() as conn:
+        cursor = conn.execute(
+            "DELETE FROM projects WHERE id = ?", (project_id,)
+        )
+    return cursor.rowcount > 0

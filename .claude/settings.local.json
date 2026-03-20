@@ -58,7 +58,10 @@
       "Bash(rm:*)",
       "WebSearch",
       "Bash(xargs grep:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(powershell:*)",
+      "Bash(findstr MSG DEBUG:*)",
+      "Bash(echo EXIT: $?:*)"
     ]
   }
 }

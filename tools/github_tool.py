@@ -67,6 +67,10 @@ def _fetch_file_content(owner: str, repo: str, path: str, max_chars: int = 10_00
         return ""
 
 
+# Public alias so LangChain tools can import without reaching into a private name.
+fetch_file_content = _fetch_file_content
+
+
 _MANIFEST_FILES = {
     "package.json", "requirements.txt", "setup.py", "pyproject.toml",
     "Cargo.toml", "go.mod", "pom.xml", "build.gradle",
