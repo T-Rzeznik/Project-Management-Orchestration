@@ -85,6 +85,55 @@ describe('ProjectDetail', () => {
     expect(screen.getByText('Test Project')).toBeInTheDocument()
   })
 
+  it('should render documentation as markdown (heading becomes <h1>)', async () => {
+    const projectWithMarkdownDocs = {
+      ...mockProject,
+      summary: '',
+      tech_stack: [],
+      documentation: '# Flask\n\nA micro framework written in **Pyflask**.',
+    }
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(projectWithMarkdownDocs),
+    })
+
+    renderWithRouter()
+
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Flask' })
+    expect(heading).toBeInTheDocument()
+    // The raw markdown source must NOT appear as plain text
+    expect(screen.queryByText('# Flask')).not.toBeInTheDocument()
+    // The bold span should be rendered as a <strong>, not as raw asterisks
+    const bold = screen.getByText('Pyflask')
+    expect(bold.tagName).toBe('STRONG')
+  })
+
+  it('should render summary above documentation when present', async () => {
+    const projectWithSummary = {
+      ...mockProject,
+      summary: 'A short agent-written overview of the project.',
+      documentation: '# README\n\nbody here',
+    }
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(projectWithSummary),
+    })
+
+    renderWithRouter()
+
+    const summaryEl = await screen.findByText(
+      'A short agent-written overview of the project.',
+    )
+    expect(summaryEl).toBeInTheDocument()
+
+    // Summary should appear in DOM order before the README heading
+    const readmeHeading = screen.getByRole('heading', { level: 1, name: 'README' })
+    expect(
+      summaryEl.compareDocumentPosition(readmeHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
   it('should call update API and return to view mode on Save', async () => {
     const updatedProject = { ...mockProject, name: 'Updated Name' }
     global.fetch = vi

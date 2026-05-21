@@ -756,3 +756,90 @@ class TestDenyEndpoint:
         """POST /api/chat/deny with unknown thread should return 404."""
         res = client.post("/api/chat/deny", json={"thread_id": "nonexistent"})
         assert res.status_code == 404
+
+
+class TestAuditWiring:
+    """Audit callbacks must actually be wired into agent invocations."""
+
+    def test_chat_passes_audit_callback_in_invoke_config(self, tmp_path, monkeypatch):
+        """POST /api/chat must invoke the agent with an AuditCallbackHandler in config['callbacks']."""
+        from security.audit_callback import AuditCallbackHandler
+
+        monkeypatch.setenv("AUDIT_LOG_DIR", str(tmp_path))
+
+        result = _make_langgraph_result("hello")
+        with patch("api.server._get_agent") as mock_get_agent:
+            mock_agent = MagicMock()
+            mock_agent.invoke.return_value = result
+            _mock_agent_done(mock_agent)
+            mock_get_agent.return_value = mock_agent
+
+            res = client.post("/api/chat", json={
+                "messages": [{"role": "user", "content": "hi"}],
+            })
+
+        assert res.status_code == 200
+        _, kwargs = mock_agent.invoke.call_args
+        config = kwargs.get("config") or {}
+        callbacks = config.get("callbacks", [])
+        assert any(isinstance(cb, AuditCallbackHandler) for cb in callbacks), (
+            "Expected at least one AuditCallbackHandler in invoke config callbacks"
+        )
+
+    def test_chat_writes_audit_log_file(self, tmp_path, monkeypatch):
+        """After /api/chat, a JSONL audit file should exist under AUDIT_LOG_DIR with SESSION_START."""
+        monkeypatch.setenv("AUDIT_LOG_DIR", str(tmp_path))
+
+        result = _make_langgraph_result("hello")
+        with patch("api.server._get_agent") as mock_get_agent:
+            mock_agent = MagicMock()
+            mock_agent.invoke.return_value = result
+            _mock_agent_done(mock_agent)
+            mock_get_agent.return_value = mock_agent
+
+            res = client.post("/api/chat", json={
+                "messages": [{"role": "user", "content": "hi"}],
+            })
+
+        assert res.status_code == 200
+
+        log_files = list(tmp_path.glob("*.jsonl"))
+        assert log_files, f"No audit log file written under {tmp_path}"
+
+        events = []
+        with open(log_files[0], encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    events.append(json.loads(line))
+
+        assert any(e["event_type"] == "SESSION_START" for e in events), (
+            f"Expected SESSION_START event, got: {[e['event_type'] for e in events]}"
+        )
+
+
+class TestLogsEndpointHonorsEnvVar:
+    """GET /api/logs must read from AUDIT_LOG_DIR when set."""
+
+    def test_logs_endpoint_reads_from_audit_log_dir_env(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AUDIT_LOG_DIR", str(tmp_path))
+
+        log_file = tmp_path / "audit_test1234_20260520.jsonl"
+        log_file.write_text(
+            json.dumps({
+                "event_id": "evt-1",
+                "timestamp_utc": "2026-05-20T12:00:00+00:00",
+                "session_id": "test1234-fake-session",
+                "event_type": "SESSION_START",
+                "operator": "test-user",
+            }) + "\n",
+            encoding="utf-8",
+        )
+
+        res = client.get("/api/logs")
+        assert res.status_code == 200
+        sessions = res.json()
+        assert any(
+            s.get("session_id") == "test1234-fake-session"
+            for s in sessions
+        ), f"Expected to find seeded session, got: {sessions}"

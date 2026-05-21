@@ -35,6 +35,23 @@ class AuditCallbackHandler(BaseCallbackHandler):
             agent_name=self._agent_name,
         )
 
+    def on_chat_model_start(
+        self,
+        serialized: dict[str, Any],
+        messages: Any,
+        **kwargs: Any,
+    ) -> None:
+        """Chat models (Gemini, OpenAI gpt-*, Anthropic claude-*) dispatch
+        ``on_chat_model_start`` instead of ``on_llm_start``. LangChain's
+        fallback to ``on_llm_start`` doesn't reliably propagate through
+        LangGraph, so we implement this hook directly to guarantee that
+        AGENT_TASK_START events are emitted for chat-model agents.
+        """
+        self._logger.log(
+            AuditEventType.AGENT_TASK_START,
+            agent_name=self._agent_name,
+        )
+
     def on_tool_start(
         self,
         serialized: dict[str, Any],
@@ -85,13 +102,38 @@ class AuditCallbackHandler(BaseCallbackHandler):
         response: LLMResult,
         **kwargs: Any,
     ) -> None:
-        token_usage = {}
-        if response.llm_output and isinstance(response.llm_output, dict):
-            token_usage = response.llm_output.get("token_usage", {})
-
+        input_tokens, output_tokens = self._extract_token_counts(response)
         self._logger.log(
             AuditEventType.AGENT_TASK_END,
             agent_name=self._agent_name,
-            total_input_tokens=token_usage.get("prompt_tokens", 0),
-            total_output_tokens=token_usage.get("completion_tokens", 0),
+            total_input_tokens=input_tokens,
+            total_output_tokens=output_tokens,
         )
+
+    @staticmethod
+    def _extract_token_counts(response: LLMResult) -> tuple[int, int]:
+        """Pull token usage from an LLMResult, handling both vendor conventions.
+
+        OpenAI-style providers expose totals on ``response.llm_output["token_usage"]``
+        as ``prompt_tokens`` / ``completion_tokens``. Gemini (via langchain-google-genai)
+        instead attaches ``usage_metadata`` (with ``input_tokens`` / ``output_tokens``)
+        to each ``AIMessage`` inside ``response.generations``.
+        """
+        llm_output = response.llm_output if isinstance(response.llm_output, dict) else None
+        usage = (llm_output or {}).get("token_usage", {}) if llm_output else {}
+        if usage:
+            return (
+                usage.get("prompt_tokens", 0) or 0,
+                usage.get("completion_tokens", 0) or 0,
+            )
+
+        total_input = 0
+        total_output = 0
+        for gen_list in getattr(response, "generations", None) or []:
+            for gen in gen_list:
+                message = getattr(gen, "message", None)
+                um = getattr(message, "usage_metadata", None) if message else None
+                if isinstance(um, dict):
+                    total_input += um.get("input_tokens", 0) or 0
+                    total_output += um.get("output_tokens", 0) or 0
+        return total_input, total_output

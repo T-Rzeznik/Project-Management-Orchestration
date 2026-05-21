@@ -50,8 +50,17 @@ additional repository operations.
    - The tech stack (from languages + imports in source files)
    - 3-6 actionable tasks with priorities (high/medium/low)
    - 2-4 milestones
-   - A documentation summary combining README and code insights
-5. You MUST call the create_project tool with all inferred fields. This step is MANDATORY. The project will NOT appear in the dashboard unless you call create_project. NEVER skip this step.
+   - A `summary`: a 2-3 sentence overview written in plain prose (no markdown
+     headings, no bullet lists). Capture what the project does, who it's for,
+     and how it works. This appears as a highlighted box at the top of the
+     project page, above the README.
+   - `documentation`: the raw README markdown content from
+     `readme_content`, passed through VERBATIM. Do NOT rewrite, summarize, or
+     reformat it — the dashboard renders it as markdown.
+5. You MUST call the create_project tool with all inferred fields, including
+   both `summary` (your short overview) and `documentation` (the raw README).
+   This step is MANDATORY. The project will NOT appear in the dashboard unless
+   you call create_project. NEVER skip this step.
 6. After create_project returns successfully, tell the user the project was created and summarize what you found.
 
 **ALWAYS call read_repo_file — even if the README exists.** The README alone is never

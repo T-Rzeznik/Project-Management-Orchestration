@@ -29,6 +29,22 @@ class TestAuditCallbackHandler:
         assert len(task_starts) >= 1
         assert task_starts[0]["agent_name"] == "project_creator"
 
+    def test_on_chat_model_start_logs_agent_task_start(self, handler, audit_logger):
+        """Chat models (Gemini, OpenAI gpt-*) dispatch on_chat_model_start, not on_llm_start."""
+        import uuid as _uuid
+        from langchain_core.messages import HumanMessage
+
+        handler.on_chat_model_start(
+            serialized={},
+            messages=[[HumanMessage(content="Hi")]],
+            run_id=_uuid.uuid4(),
+        )
+
+        events = _read_events(audit_logger.log_path)
+        task_starts = [e for e in events if e["event_type"] == "AGENT_TASK_START"]
+        assert len(task_starts) >= 1
+        assert task_starts[0]["agent_name"] == "project_creator"
+
     def test_on_tool_start_logs_tool_call_proposed(self, handler, audit_logger):
         handler.on_tool_start(
             serialized={},
@@ -67,11 +83,76 @@ class TestAuditCallbackHandler:
         mock_response.llm_output = {
             "token_usage": {"prompt_tokens": 100, "completion_tokens": 50}
         }
+        mock_response.generations = []
         handler.on_llm_end(response=mock_response)
 
         events = _read_events(audit_logger.log_path)
         task_ends = [e for e in events if e["event_type"] == "AGENT_TASK_END"]
         assert len(task_ends) >= 1
+
+    def test_on_llm_end_captures_openai_style_token_usage(self, handler, audit_logger):
+        """OpenAI-style llm_output.token_usage should be recorded in totals."""
+        mock_response = MagicMock()
+        mock_response.llm_output = {
+            "token_usage": {"prompt_tokens": 100, "completion_tokens": 50}
+        }
+        mock_response.generations = []
+        handler.on_llm_end(response=mock_response)
+
+        events = _read_events(audit_logger.log_path)
+        task_ends = [e for e in events if e["event_type"] == "AGENT_TASK_END"]
+        assert task_ends[-1]["total_input_tokens"] == 100
+        assert task_ends[-1]["total_output_tokens"] == 50
+
+    def test_on_llm_end_captures_gemini_usage_metadata(self, handler, audit_logger):
+        """Gemini stores token counts on AIMessage.usage_metadata across generations."""
+        from langchain_core.messages import AIMessage
+        from langchain_core.outputs import ChatGeneration, LLMResult
+
+        msg = AIMessage(
+            content="hi",
+            usage_metadata={
+                "input_tokens": 200,
+                "output_tokens": 75,
+                "total_tokens": 275,
+            },
+        )
+        result = LLMResult(
+            generations=[[ChatGeneration(message=msg)]],
+            llm_output=None,
+        )
+
+        handler.on_llm_end(response=result)
+
+        events = _read_events(audit_logger.log_path)
+        task_ends = [e for e in events if e["event_type"] == "AGENT_TASK_END"]
+        assert task_ends[-1]["total_input_tokens"] == 200
+        assert task_ends[-1]["total_output_tokens"] == 75
+
+    def test_on_llm_end_sums_across_multiple_generations(self, handler, audit_logger):
+        """Multiple AIMessage generations should be summed."""
+        from langchain_core.messages import AIMessage
+        from langchain_core.outputs import ChatGeneration, LLMResult
+
+        m1 = AIMessage(
+            content="a",
+            usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        )
+        m2 = AIMessage(
+            content="b",
+            usage_metadata={"input_tokens": 20, "output_tokens": 8, "total_tokens": 28},
+        )
+        result = LLMResult(
+            generations=[[ChatGeneration(message=m1)], [ChatGeneration(message=m2)]],
+            llm_output=None,
+        )
+
+        handler.on_llm_end(response=result)
+
+        events = _read_events(audit_logger.log_path)
+        task_ends = [e for e in events if e["event_type"] == "AGENT_TASK_END"]
+        assert task_ends[-1]["total_input_tokens"] == 30
+        assert task_ends[-1]["total_output_tokens"] == 13
 
     def test_scrubs_secrets_from_tool_args(self, handler, audit_logger):
         handler.on_tool_start(
@@ -96,3 +177,74 @@ def _read_events(log_path) -> list[dict]:
             if line:
                 events.append(json.loads(line))
     return events
+
+
+class TestCallbackPropagationThroughReactAgent:
+    """End-to-end: verify the AuditCallbackHandler actually fires when passed
+    via config to a real LangGraph create_react_agent. This guards against
+    regressions like the one where on_chat_model_start was missing and no
+    events past SESSION_START were ever written."""
+
+    def test_callbacks_fire_for_chat_model_and_tools(self, tmp_path):
+        from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+        from langchain_core.messages import AIMessage
+        from langchain_core.tools import tool
+        from langgraph.prebuilt import create_react_agent
+
+        from framework.audit_logger import AuditLogger
+        from security.audit_callback import AuditCallbackHandler
+
+        logger = AuditLogger(log_dir=tmp_path, session_id="propagation-test")
+        handler = AuditCallbackHandler(audit_logger=logger, agent_name="project_creator")
+
+        @tool
+        def echo_tool(text: str) -> str:
+            """Echo the input back."""
+            return f"echoed:{text}"
+
+        # First model turn: request a tool call. Second turn: finish with text.
+        scripted = iter([
+            AIMessage(
+                content="",
+                tool_calls=[{
+                    "id": "call-1",
+                    "name": "echo_tool",
+                    "args": {"text": "hi"},
+                }],
+            ),
+            AIMessage(content="all done"),
+        ])
+
+        class _ToolBindingFakeChat(GenericFakeChatModel):
+            """GenericFakeChatModel that satisfies create_react_agent's bind_tools check."""
+
+            def bind_tools(self, tools, **kwargs):
+                return self
+
+        fake_model = _ToolBindingFakeChat(messages=scripted)
+
+        agent = create_react_agent(model=fake_model, tools=[echo_tool])
+        agent.invoke(
+            {"messages": [("user", "kick off")]},
+            config={"callbacks": [handler]},
+        )
+
+        events = _read_events(logger.log_path)
+        event_types = [e["event_type"] for e in events]
+
+        assert "AGENT_TASK_START" in event_types, (
+            f"Chat-model start hook never fired. Got: {event_types}"
+        )
+        assert "TOOL_CALL_PROPOSED" in event_types, (
+            f"Tool start hook never fired. Got: {event_types}"
+        )
+        assert "TOOL_EXECUTED" in event_types, (
+            f"Tool end hook never fired. Got: {event_types}"
+        )
+        assert "AGENT_TASK_END" in event_types, (
+            f"LLM end hook never fired. Got: {event_types}"
+        )
+
+        named = [e for e in events if e.get("agent_name")]
+        assert named, "No event ever recorded an agent_name"
+        assert all(e["agent_name"] == "project_creator" for e in named)

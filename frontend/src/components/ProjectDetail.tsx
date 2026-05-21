@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
 import { getProject, deleteProject, updateProject } from '../api'
 import type { Project, Task } from '../types'
 import TechStackBadges from './TechStackBadges'
@@ -285,13 +286,25 @@ export default function ProjectDetail() {
               </div>
             </div>
 
-            {/* Documentation */}
+            {/* Agent-written summary */}
+            {project.summary && (
+              <div className="mt-4 bg-indigo-950/40 border border-indigo-800/60 rounded-lg p-4">
+                <h3 className="text-xs font-semibold text-indigo-300 uppercase tracking-wide mb-1.5">
+                  Summary
+                </h3>
+                <p className="text-gray-200 text-sm leading-relaxed">
+                  {project.summary}
+                </p>
+              </div>
+            )}
+
+            {/* Documentation (rendered markdown) */}
             {project.documentation && (
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-gray-400 mb-1.5">Documentation</h3>
-                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap bg-gray-800/50 rounded-lg p-3 border border-gray-800">
-                  {project.documentation}
-                </p>
+                <div className="prose prose-invert prose-sm max-w-none bg-gray-800/50 rounded-lg p-4 border border-gray-800">
+                  <ReactMarkdown>{project.documentation}</ReactMarkdown>
+                </div>
               </div>
             )}
 

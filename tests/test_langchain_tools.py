@@ -85,6 +85,23 @@ class TestCreateProject:
         assert len(project["tasks"]) == 1
         assert project["tasks"][0]["title"] == "Task 1"
 
+    def test_persists_summary(self):
+        from api import storage
+        create_project.invoke({
+            "name": "With Summary",
+            "summary": "A short two-sentence overview of what this project does.",
+        })
+        project = storage.list_projects()[0]
+        assert project["summary"] == (
+            "A short two-sentence overview of what this project does."
+        )
+
+    def test_summary_defaults_to_empty(self):
+        from api import storage
+        create_project.invoke({"name": "No Summary"})
+        project = storage.list_projects()[0]
+        assert project["summary"] == ""
+
     def test_is_langchain_tool(self):
         from langchain_core.tools import BaseTool
         assert isinstance(create_project, BaseTool)

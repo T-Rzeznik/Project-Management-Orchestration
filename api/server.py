@@ -8,6 +8,7 @@ load_dotenv()
 import asyncio
 import ast
 import json
+import os
 import threading
 import time
 import uuid
@@ -31,7 +32,9 @@ from api.models import (
     Task,
     UpdateProjectRequest,
 )
+from framework.audit_logger import AuditLogger
 from framework.mcp_client import MCPClientManager
+from security.audit_callback import AuditCallbackHandler
 from tools.github_tool import fetch_repo_data
 
 app = FastAPI(title="Project Management Orchestration API", version="1.0.0")
@@ -50,6 +53,43 @@ _executor = ThreadPoolExecutor(max_workers=4)
 _threads: dict[str, float] = {}  # thread_id -> creation timestamp
 _threads_lock = threading.Lock()
 
+# --- Per-thread audit loggers (one AuditLogger / log file per chat session) ---
+_audit_loggers: dict[str, AuditLogger] = {}
+_audit_lock = threading.Lock()
+
+
+def _audit_log_dir() -> Path:
+    """Resolve the audit-log directory, honoring the AUDIT_LOG_DIR env var.
+
+    Default is ``<project_root>/.audit_logs``. Evaluated per call so tests
+    (and ops) can override at runtime by setting the env var.
+    """
+    override = os.environ.get("AUDIT_LOG_DIR")
+    if override:
+        return Path(override)
+    return Path(__file__).parent.parent / ".audit_logs"
+
+
+def _get_audit_handler(thread_id: str) -> AuditCallbackHandler:
+    """Return an AuditCallbackHandler for *thread_id*, creating the
+    underlying AuditLogger on first use.
+
+    One AuditLogger (one JSONL file) per thread so /api/chat and
+    /api/chat/approve calls share a session.
+    """
+    from agents.project_creator import AGENT_NAME
+
+    with _audit_lock:
+        logger = _audit_loggers.get(thread_id)
+        if logger is None:
+            logger = AuditLogger(
+                log_dir=_audit_log_dir(),
+                session_id=thread_id,
+                operator="web-ui",
+            )
+            _audit_loggers[thread_id] = logger
+    return AuditCallbackHandler(audit_logger=logger, agent_name=AGENT_NAME)
+
 
 def _create_thread() -> str:
     """Create a new thread ID and register it."""
@@ -67,18 +107,29 @@ def _thread_exists(thread_id: str) -> bool:
 
 
 def _cleanup_threads(max_age_seconds: int = 3600) -> None:
-    """Remove threads older than max_age_seconds."""
+    """Remove threads older than max_age_seconds and close their audit loggers."""
     cutoff = time.time() - max_age_seconds
     with _threads_lock:
         expired = [tid for tid, ts in _threads.items() if ts < cutoff]
         for tid in expired:
             del _threads[tid]
+    with _audit_lock:
+        for tid in expired:
+            logger = _audit_loggers.pop(tid, None)
+            if logger is not None:
+                try:
+                    logger.close()
+                except OSError:
+                    pass
 
 
 @app.get("/api/logs")
 async def list_log_sessions():
-    """Return all audit log sessions from .audit_logs/*.jsonl, newest first."""
-    log_dir = Path(__file__).parent.parent / ".audit_logs"
+    """Return all audit log sessions from the audit-log directory, newest first.
+
+    Directory is configurable via the AUDIT_LOG_DIR env var.
+    """
+    log_dir = _audit_log_dir()
     if not log_dir.exists():
         return []
 
@@ -577,11 +628,19 @@ def _build_step_response(agent, config: dict, result_messages: list) -> dict:
     }
 
 
+def _agent_config(thread_id: str) -> dict:
+    """Build the LangGraph invoke config, wiring the per-thread audit callback."""
+    return {
+        "configurable": {"thread_id": thread_id},
+        "callbacks": [_get_audit_handler(thread_id)],
+    }
+
+
 def _call_agent(agent, messages: list[dict], thread_id: str) -> dict:
     """Invoke the LangGraph agent with a thread. Runs in thread pool."""
     from langchain_core.messages import HumanMessage, AIMessage as AI
 
-    config = {"configurable": {"thread_id": thread_id}}
+    config = _agent_config(thread_id)
 
     lc_messages = []
     for msg in messages:
@@ -598,7 +657,7 @@ def _call_agent(agent, messages: list[dict], thread_id: str) -> dict:
 
 def _resume_agent(agent, thread_id: str) -> dict:
     """Resume a paused agent (after approve). Runs in thread pool."""
-    config = {"configurable": {"thread_id": thread_id}}
+    config = _agent_config(thread_id)
     result = agent.invoke(None, config=config)
     # invoke(None) may return only delta messages; use full state for extraction
     full_messages = agent.get_state(config).values.get("messages", [])
@@ -609,7 +668,7 @@ def _deny_and_resume(agent, thread_id: str, reason: str) -> dict:
     """Inject denial ToolMessages and resume the agent. Runs in thread pool."""
     from langchain_core.messages import ToolMessage
 
-    config = {"configurable": {"thread_id": thread_id}}
+    config = _agent_config(thread_id)
     state = agent.get_state(config)
     result_messages = state.values.get("messages", [])
     pending = _extract_pending_tools(result_messages)

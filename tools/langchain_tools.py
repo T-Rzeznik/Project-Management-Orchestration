@@ -42,6 +42,7 @@ def create_project(
     tech_stack: Optional[list[str]] = None,
     github_url: str = "",
     documentation: str = "",
+    summary: str = "",
     tasks: Optional[list[dict]] = None,
     milestones: Optional[list[dict]] = None,
 ) -> dict:
@@ -52,7 +53,11 @@ def create_project(
         description: Project description
         tech_stack: List of technologies used
         github_url: GitHub repository URL
-        documentation: Project documentation or summary
+        documentation: Full project documentation — paste the raw README markdown
+            verbatim here so the dashboard can render it. Do NOT summarize.
+        summary: A short 2-3 sentence agent-written overview that appears above
+            the README. Capture what the project does, who it's for, and how it
+            works in plain prose (no markdown headings).
         tasks: List of tasks (each with title, description, priority, status)
         milestones: List of milestones (each with title, description)
     """
@@ -77,7 +82,7 @@ def create_project(
         "language": "",
         "open_issues_count": 0,
         "contributors": [],
-        "summary": "",
+        "summary": summary,
         "created_at": now,
         "updated_at": now,
     }
